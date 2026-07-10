@@ -53,7 +53,7 @@ export function ActionBar({
         <button className={`btn ${buildIntent === 'city' ? 'btn-gold' : 'btn-ghost'}`} disabled={!canBuyCity} onClick={() => toggle('city')} title="2 Getreide + 3 Erz">Stadt</button>
         <button className="btn btn-ghost" disabled={!canBuyDev} onClick={() => act({ type: 'buyDevCard' })} title="Wolle+Getreide+Erz">Karte kaufen</button>
         <button className="btn btn-ghost" onClick={onTrade}>Handeln</button>
-        <div style={{ flex: 1 }} />
+        <div className="action-spacer" />
         <button className="btn btn-green" onClick={() => { setBuildIntent(null); act({ type: 'endTurn' }); }}>Zug beenden</button>
       </div>
     );

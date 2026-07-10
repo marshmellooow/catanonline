@@ -16,7 +16,7 @@ import { EventLog } from '../components/game/EventLog';
 import { ChatPanel } from '../components/ChatPanel';
 import { makeColorOf, phaseLabel } from '../components/game/ui';
 import { validSettlementCorners, validRoadEdges, type GameState, type DevCardType } from '@catan/shared';
-import { MessageCircle, X, LogOut } from '../icons';
+import { MessageCircle, X, LogOut, Users, Landmark } from '../icons';
 import '../components/game/game.css';
 
 export function Game() {
@@ -28,6 +28,9 @@ export function Game() {
   const [tradeOpen, setTradeOpen] = useState(false);
   const [devPrompt, setDevPrompt] = useState<'yearOfPlenty' | 'monopoly' | null>(null);
   const [showChat, setShowChat] = useState(false);
+  // Mobil: Spieler-/Bank-Panel als ausklappbares Bottom-Sheet (statt Dauer-Overlay).
+  // Nur eins gleichzeitig offen; auf Desktop per CSS unwirksam (Chips ausgeblendet).
+  const [mobileSheet, setMobileSheet] = useState<'players' | 'bank' | null>(null);
 
   const colorOf = useMemo(() => makeColorOf(game), [game?.players.map((p) => p.colorIndex).join()]);
 
@@ -96,19 +99,39 @@ export function Game() {
   const waitingPause = !!activeDisconnected && (game.phase !== 'discard');
 
   return (
-    <div className="game">
+    <div className="game" data-sheet={mobileSheet ?? undefined}>
       <div className="game-header">
         <div className="row gap-3">
           <span className={`phase-pill ${yourTurn ? 'mine' : ''}`}>{phaseLabel(game, me)}</span>
         </div>
         <div className="row gap-2">
-          <span className="muted" style={{ fontSize: 13 }}>Zug {game.turnCount} · {activeName}</span>
+          <span className="muted turn-meta" style={{ fontSize: 13 }}>Zug {game.turnCount} · {activeName}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowChat((v) => !v)}><MessageCircle size={15} /> Chat</button>
           <button className="btn btn-red btn-sm" onClick={leaveRoom}><LogOut size={15} /> Verlassen</button>
         </div>
       </div>
 
       <div className="game-main">
+        {/* Mobile-Steuerleiste: Spieler/Bank ein-/ausklappen (auf Desktop ausgeblendet) */}
+        <div className="mobile-bar">
+          <button
+            type="button"
+            className={`m-chip ${mobileSheet === 'players' ? 'active' : ''}`}
+            aria-pressed={mobileSheet === 'players'}
+            onClick={() => setMobileSheet((s) => (s === 'players' ? null : 'players'))}
+          >
+            <Users size={16} /> Spieler <span className="m-chip-n">{game.players.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`m-chip ${mobileSheet === 'bank' ? 'active' : ''}`}
+            aria-pressed={mobileSheet === 'bank'}
+            onClick={() => setMobileSheet((s) => (s === 'bank' ? null : 'bank'))}
+          >
+            <Landmark size={16} /> Bank
+          </button>
+        </div>
+
         <div className="board-wrap">
           <Board
             board={board}
@@ -139,6 +162,9 @@ export function Game() {
             Warte auf {activeName}… (Reconnect möglich)
           </div>
         )}
+
+        {/* Mobil: abdunkelnder Hintergrund schließt das offene Sheet (auf Desktop per CSS aus) */}
+        {mobileSheet && <div className="sheet-scrim" onClick={() => setMobileSheet(null)} />}
 
         {showChat && (
           <div className="chat-drawer panel">

@@ -2,6 +2,7 @@
 export {
   Crown, // Host
   Bot, // Bot-Spieler
+  Users, // Spieler (Mobil-Toggle)
   Landmark, // Bank
   Dices, // Würfeln
   Layers, // Handkarten

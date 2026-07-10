@@ -45,7 +45,7 @@ export function Lobby() {
         </div>
 
         {/* Karten-Vorschau + Auswahl */}
-        <div className="panel" style={{ padding: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, minHeight: 0, flex: 1 }}>
+        <div className="panel lobby-map" style={{ padding: 16, minHeight: 0, flex: 1 }}>
           <div className="col" style={{ minHeight: 0 }}>
             <h3 style={{ margin: '0 0 10px' }}>Karte</h3>
             <div className="map-grid" style={{ overflowY: 'auto', paddingRight: 4 }}>

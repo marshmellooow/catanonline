@@ -206,6 +206,11 @@
   gap: 16px;
   min-height: 0;
 }
+.lobby-map {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
 .code-badge {
   display: inline-flex;
   align-items: center;
@@ -350,5 +355,61 @@
   }
   50% {
     opacity: 0.85;
+  }
+}
+
+/* ============================================================
+   Mobile-Layout für Home & Lobby
+   ============================================================ */
+/* Lobby: von 2 Spalten (Haupt + Seitenpanel) auf gestapelt + scrollbar */
+@media (max-width: 860px) {
+  .lobby {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lobby-map {
+    grid-template-columns: 1fr;
+  }
+  .lobby-map .center {
+    min-height: 200px;
+  }
+  /* Seitenpanel (Spieler + Chat) darf mitscrollen statt intern zu klemmen */
+  .side {
+    min-height: 0;
+  }
+  .side .chat-log {
+    max-height: 40vh;
+  }
+}
+@media (max-width: 560px) {
+  .lobby {
+    padding: 10px;
+  }
+  .code-badge {
+    font-size: 26px;
+    letter-spacing: 4px;
+    padding: 8px 14px;
+  }
+  .map-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .color-grid {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+/* Home: Karte + Titel auf sehr schmalen Screens etwas kompakter */
+@media (max-width: 480px) {
+  .home {
+    padding: 14px;
+  }
+  .home-card {
+    padding: 22px;
+  }
+  .home-title {
+    font-size: 32px;
   }
 }

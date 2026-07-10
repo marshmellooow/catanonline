@@ -29,6 +29,15 @@ body,
   margin: 0;
   height: 100%;
 }
+/* Dynamische Viewport-Höhe: die mobile Browser-Leiste (URL-Bar) darf die
+   Fußzeile nicht mehr abschneiden. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
 
 body {
   background: var(--bg);
@@ -77,6 +86,13 @@ select:focus {
 }
 option {
   color: #111;
+}
+/* iOS zoomt beim Fokus in Felder < 16px hinein → auf Mobil mind. 16px. */
+@media (max-width: 720px) {
+  input,
+  select {
+    font-size: 16px;
+  }
 }
 
 /* ---------- Buttons ---------- */
