@@ -83,5 +83,29 @@ export function ActionBar({
     );
   }
 
+  if (game.phase === 'moveRobber') {
+    return (
+      <div className="action-bar">
+        <span className="marcellus">Räuber versetzen — wähle ein hervorgehobenes Feld auf dem Brett. Danach kannst du bauen &amp; handeln.</span>
+      </div>
+    );
+  }
+
+  if (game.phase === 'setupSettlement') {
+    return (
+      <div className="action-bar">
+        <span className="marcellus">Startsiedlung setzen — tippe auf eine hervorgehobene Ecke.</span>
+      </div>
+    );
+  }
+
+  if (game.phase === 'setupRoad') {
+    return (
+      <div className="action-bar">
+        <span className="marcellus">Startstraße setzen — tippe auf eine hervorgehobene Kante.</span>
+      </div>
+    );
+  }
+
   return null;
 }
