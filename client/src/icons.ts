@@ -27,4 +27,5 @@ export {
   LogOut, // Verlassen
   Plus, // Stepper: mehr geben/bekommen
   Minus, // Stepper: weniger geben/bekommen
+  Maximize2, // Brett-Zoom zurücksetzen (Ansicht einpassen)
 } from 'lucide-react';

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { Board } from '../components/board/Board';
+import { PanZoom } from '../components/board/PanZoom';
 import { PlayerRail } from '../components/game/PlayerRail';
 import { Hand } from '../components/game/Hand';
 import { ActionBar, type BuildIntent } from '../components/game/ActionBar';
@@ -133,19 +134,21 @@ export function Game() {
         </div>
 
         <div className="board-wrap">
-          <Board
-            board={board}
-            buildings={game.buildings}
-            roads={game.roads}
-            robberHex={game.robberHex}
-            colorOf={colorOf}
-            highlightCorners={highlights.corners}
-            highlightEdges={highlights.edges}
-            highlightHexes={highlights.hexes}
-            onCorner={onCorner}
-            onEdge={onEdge}
-            onHex={onHex}
-          />
+          <PanZoom>
+            <Board
+              board={board}
+              buildings={game.buildings}
+              roads={game.roads}
+              robberHex={game.robberHex}
+              colorOf={colorOf}
+              highlightCorners={highlights.corners}
+              highlightEdges={highlights.edges}
+              highlightHexes={highlights.hexes}
+              onCorner={onCorner}
+              onEdge={onEdge}
+              onHex={onHex}
+            />
+          </PanZoom>
         </div>
 
         <PlayerRail />
