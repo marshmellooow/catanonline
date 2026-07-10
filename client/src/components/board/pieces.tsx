@@ -286,6 +286,10 @@ export function BoardDefs() {
       <filter id="tileShadow" x="-20%" y="-20%" width="140%" height="150%">
         <feDropShadow dx="0" dy="5" stdDeviation="3.5" floodColor="#000" floodOpacity="0.35" />
       </filter>
+      {/* Gold-Glut um Bau-Highlights (Straßen/Ecken), damit sie klar hervorstechen */}
+      <filter id="hlGlow" x="-80%" y="-80%" width="260%" height="260%">
+        <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#ffcf5a" floodOpacity="0.95" />
+      </filter>
       <linearGradient id="robberBody" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stopColor="#646E7A" />
         <stop offset="0.48" stopColor="#3E444D" />

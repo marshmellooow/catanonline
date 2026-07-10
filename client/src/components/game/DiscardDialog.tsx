@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { RESOURCE_ORDER, resLabel } from './ui';
 import { ResourceCard } from './ResourceCard';
@@ -9,6 +9,13 @@ export function DiscardDialog() {
   const me = useStore((s) => s.playerId);
   const act = useStore((s) => s.act);
   const [sel, setSel] = useState<Record<ResourceType, number>>({ wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 });
+
+  // Auswahl NICHT über mehrere Räuber-Runden merken: bei jedem Eintritt in die
+  // Abwerf-Phase zurücksetzen (die Komponente bleibt sonst gemountet → alter Stand).
+  const inDiscard = game?.phase === 'discard';
+  useEffect(() => {
+    if (inDiscard) setSel({ wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 });
+  }, [inDiscard]);
 
   if (!game || !me || game.phase !== 'discard') return null;
   const need = game.mustDiscard[me];

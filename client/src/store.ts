@@ -41,6 +41,7 @@ interface StoreState {
   createRoom: (name: string) => void;
   joinRoom: (code: string, name: string) => void;
   leaveRoom: () => void;
+  returnToLobby: () => void;
   act: (action: GameAction) => void;
   sendMsg: typeof send;
   pushToast: (text: string, kind?: Toast['kind']) => void;
@@ -95,6 +96,7 @@ export const useStore = create<StoreState>((set, get) => ({
     localStorage.removeItem(LS_SESSION);
     set({ screen: 'home', room: null, game: null, sessionId: null, playerId: null, code: null, chat: [], gameStarting: false });
   },
+  returnToLobby: () => send({ t: 'returnToLobby' }),
   act: (action) => send({ t: 'action', action }),
   sendMsg: send,
   pushToast: (text, kind = 'info') => {
@@ -121,7 +123,8 @@ function handleMessage(msg: ServerMsg, set: (p: Partial<StoreState>) => void, ge
       const screen = msg.room.phase === 'lobby' ? 'lobby' : 'game';
       // Frischer Spielstart aus der Lobby → Intro-Ladescreen für alle Spieler zeigen.
       const startingNow = wasLobby && screen === 'game';
-      set({ room: msg.room, playerId: msg.you, screen, ...(startingNow ? { gameStarting: true } : {}) });
+      // Zurück in die Lobby (z. B. Rematch nach Spielende) → altes Spiel verwerfen.
+      set({ room: msg.room, playerId: msg.you, screen, ...(startingNow ? { gameStarting: true } : {}), ...(msg.room.phase === 'lobby' ? { game: null } : {}) });
       // Toast bei Verbindungswechsel eines Mitspielers
       if (prev && prev.phase === msg.room.phase) {
         for (const p of msg.room.players) {

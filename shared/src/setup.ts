@@ -50,8 +50,10 @@ export function createGame(config: GameConfig): GameState {
     playedKnights: 0,
     connected: true,
     isBot: !!pc.isBot,
-    settlementsLeft: 5,
-    citiesLeft: 4,
+    // Kein Bau-Limit für Siedlungen/Städte (bewusst „unbegrenzt"): hoch angesetzt,
+    // das echte Limit sind die Bauplätze/Rohstoffe auf dem Brett. Straßen bleiben klassisch (15).
+    settlementsLeft: 99,
+    citiesLeft: 99,
     roadsLeft: 15,
   }));
 

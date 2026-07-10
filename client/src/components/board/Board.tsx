@@ -58,7 +58,11 @@ export const Board = memo(function Board(props: BoardProps) {
       {Object.entries(buildings).map(([id, b]) => {
         const c = board.corners[Number(id)];
         if (!c) return null;
-        return <Settlement key={`b${id}`} x={c.x} y={c.y} w={w} color={colorOf(b.owner)} city={b.type === 'city'} />;
+        return (
+          <g key={`b${id}`} data-corner={id}>
+            <Settlement x={c.x} y={c.y} w={w} color={colorOf(b.owner)} city={b.type === 'city'} />
+          </g>
+        );
       })}
 
       {/* Räuber */}
@@ -87,20 +91,24 @@ export const Board = memo(function Board(props: BoardProps) {
         const e = board.edges[id];
         if (!e) return null;
         return (
-          <line
-            key={`he${id}`}
-            x1={e.x1}
-            y1={e.y1}
-            x2={e.x2}
-            y2={e.y2}
-            stroke="var(--gold)"
-            strokeWidth={w * 0.13}
-            strokeLinecap="round"
-            opacity={0.55}
-            style={{ cursor: 'pointer' }}
-            className="pulse-line"
-            onClick={() => props.onEdge?.(id)}
-          />
+          <g key={`he${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onEdge?.(id)}>
+            {/* dunkle Kontur — konstanter Kontrast auf hellem wie dunklem Terrain */}
+            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#1c1508" strokeWidth={w * 0.26} strokeLinecap="round" opacity={0.55} />
+            {/* heller, glühender, stark pulsierender Kern */}
+            <line
+              x1={e.x1}
+              y1={e.y1}
+              x2={e.x2}
+              y2={e.y2}
+              stroke="#FFD766"
+              strokeWidth={w * 0.16}
+              strokeLinecap="round"
+              filter="url(#hlGlow)"
+              className="pulse-strong"
+            />
+            {/* breiter unsichtbarer Klick-/Touch-Bereich */}
+            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="transparent" strokeWidth={w * 0.4} strokeLinecap="round" />
+          </g>
         );
       })}
 
@@ -109,16 +117,28 @@ export const Board = memo(function Board(props: BoardProps) {
         if (!c) return null;
         return (
           <g key={`hc${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onCorner?.(id)}>
-            <circle cx={c.x} cy={c.y} r={w * 0.18} fill="transparent" />
+            <circle cx={c.x} cy={c.y} r={w * 0.22} fill="transparent" />
+            {/* pulsierender Glut-Ring */}
             <circle
               cx={c.x}
               cy={c.y}
-              r={w * 0.11}
-              fill="var(--gold)"
-              stroke="#2a2011"
-              strokeWidth={1.5}
+              r={w * 0.17}
+              fill="none"
+              stroke="#FFD766"
+              strokeWidth={w * 0.05}
+              filter="url(#hlGlow)"
               className="pulse-node"
               style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
+            />
+            {/* heller Kern-Punkt */}
+            <circle
+              cx={c.x}
+              cy={c.y}
+              r={w * 0.105}
+              fill="#FFD766"
+              stroke="#2a2011"
+              strokeWidth={1.5}
+              filter="url(#hlGlow)"
             />
           </g>
         );

@@ -166,6 +166,151 @@
   flex-shrink: 0;
   opacity: 0.85;
 }
+.event-text {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  line-height: 1.5;
+}
+.ev-amounts {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.ev-arrow {
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+/* Kompakter farbiger Rohstoff-Chip (Log + Kosten-Tooltip) */
+.res-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+}
+.res-chip-n {
+  font-weight: 700;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.res-chip-swatch {
+  display: inline-block;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 1px 1px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+.res-chip.dim {
+  opacity: 0.45;
+}
+.res-chip.dim .res-chip-swatch {
+  filter: grayscale(0.85) brightness(0.85);
+}
+
+/* Bau-Kosten-Tooltip (Hover über Straße/Siedlung/Stadt/Karte) */
+.build-opt {
+  display: inline-flex;
+}
+.build-opt button:disabled {
+  pointer-events: none; /* Hover trifft den Wrapper-Span → Tooltip auch bei „nicht leistbar" */
+}
+.cost-pop {
+  z-index: 200;
+  background: var(--dialog);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 7px 10px 8px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: costPop 0.12s ease;
+}
+.cost-pop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--dialog);
+}
+.cost-pop-title {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin-bottom: 5px;
+}
+.cost-pop-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+@keyframes costPop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Generischer Hover-Tooltip (z. B. Entwicklungskarten-Erklärung) */
+.hovertip-wrap {
+  display: inline-flex;
+}
+.hovertip-wrap button:disabled {
+  pointer-events: none; /* Hover trifft den Wrapper → Tooltip auch bei nicht spielbarer Karte */
+}
+.hover-tip {
+  z-index: 200;
+  max-width: 240px;
+  background: var(--dialog);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  white-space: normal;
+  animation: costPop 0.12s ease;
+}
+.hover-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--dialog);
+}
+.devtip-title {
+  font-family: 'Marcellus', serif;
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.devtip-desc {
+  font-size: 12.5px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.devtip-note {
+  font-size: 11.5px;
+  color: var(--text-2);
+  font-style: italic;
+  margin-top: 5px;
+}
+
+/* Sieger-Overlay: „Brett ansehen" → Modal aus, kleiner Wiedereinblenden-Button */
+.winner-reopen {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+}
 .stat {
   display: inline-flex;
   align-items: center;
@@ -751,6 +896,98 @@
   position: fixed;
   will-change: transform, opacity;
   filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.45));
+}
+
+/* Siegpunkt-Einblendung über neu gesetztem Gebäude (+1 SP / +2 SP) */
+.vp-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 305;
+  overflow: hidden;
+}
+.vp-pop {
+  position: fixed;
+  font-family: 'Marcellus', serif;
+  font-weight: 700;
+  font-size: 21px;
+  color: #ffe08a;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.65), 0 0 12px rgba(255, 207, 90, 0.55);
+  white-space: nowrap;
+  animation: vpRise 1.5s ease-out forwards;
+}
+@keyframes vpRise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -95%) scale(1.08);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -175%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -255%) scale(0.95);
+  }
+}
+
+/* Banner „Längste Straße" (Vergabe / Diebstahl) */
+.lr-banner-wrap {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 320;
+  pointer-events: none;
+  width: max-content;
+  max-width: 92vw;
+}
+.lr-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(30, 40, 50, 0.97), rgba(18, 26, 34, 0.97));
+  border: 1.5px solid var(--gold);
+  color: var(--text);
+  font-size: 15px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  animation: lrIn 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.lr-banner svg {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+.lr-banner.stolen {
+  border-color: #e86c4a;
+}
+.lr-banner.stolen svg {
+  color: #ff8a63;
+}
+@keyframes lrIn {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vp-pop {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -120%);
+  }
+  .lr-banner {
+    animation: none;
+  }
 }
 .hand-empty {
   font-size: 13px;

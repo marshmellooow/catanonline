@@ -364,6 +364,17 @@ export class Room {
     return null;
   }
 
+  /** Nach Spielende zurück in die Lobby (Rematch): Spieler/Sitze/Einstellungen bleiben, Bereit-Status zurück. */
+  returnToLobby(playerId: string) {
+    if (this.phase !== 'finished') return; // nur nach Spielende
+    if (!this.findPlayer(playerId)) return; // Zuschauer nicht
+    if (this.botTimer) { clearTimeout(this.botTimer); this.botTimer = null; }
+    this.game = null;
+    this.phase = 'lobby';
+    for (const p of this.players) if (!p.isBot) p.ready = false;
+    this.broadcastRoom();
+  }
+
   // ---------- Spielaktionen ----------
   handleAction(playerId: string, action: GameAction) {
     if (!this.game || this.phase !== 'playing') return;

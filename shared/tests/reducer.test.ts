@@ -35,7 +35,7 @@ describe('Startaufstellung', () => {
     expect(s.phase).toBe('roll');
     expect(s.activeIndex).toBe(0);
     for (const p of s.players) {
-      expect(p.settlementsLeft).toBe(3); // 5 - 2
+      expect(p.settlementsLeft).toBe(97); // 99 - 2 (kein Bau-Limit)
       expect(p.roadsLeft).toBe(13); // 15 - 2
     }
     // zweite Siedlung hat Starterträge gebracht

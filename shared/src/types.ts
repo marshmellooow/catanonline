@@ -134,7 +134,7 @@ export type GameEvent =
   | { t: 'bankTrade'; player: string; give: ResourceCounts; get: ResourceCounts }
   | { t: 'monopoly'; player: string; resource: ResourceType; total: number }
   | { t: 'yearOfPlenty'; player: string; resources: ResourceType[] }
-  | { t: 'longestRoad'; player: string | null }
+  | { t: 'longestRoad'; player: string | null; prev?: string | null }
   | { t: 'largestArmy'; player: string | null }
   | { t: 'win'; player: string }
   | { t: 'turn'; player: string }

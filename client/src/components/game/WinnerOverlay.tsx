@@ -1,13 +1,32 @@
+import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { PLAYER_COLORS } from '@catan/shared';
-import { Trophy } from '../../icons';
+import { Trophy, ArrowRight, Users, LogOut } from '../../icons';
 
 export function WinnerOverlay() {
   const game = useStore((s) => s.game);
   const leaveRoom = useStore((s) => s.leaveRoom);
+  const returnToLobby = useStore((s) => s.returnToLobby);
+  const [hidden, setHidden] = useState(false);
+
+  // Bei neuem Spielende wieder einblenden (falls von letzter Runde „ausgeblendet").
+  const winnerId = game?.winner ?? null;
+  useEffect(() => {
+    setHidden(false);
+  }, [winnerId]);
+
   if (!game || !game.winner) return null;
   const winner = game.players.find((p) => p.id === game.winner);
   const col = winner ? PLAYER_COLORS[winner.colorIndex] : PLAYER_COLORS[0];
+
+  // „Brett ansehen": Modal ausgeblendet → kleiner Wiedereinblenden-Button.
+  if (hidden) {
+    return (
+      <button className="btn btn-gold winner-reopen" onClick={() => setHidden(false)}>
+        <Trophy size={16} /> Ergebnis
+      </button>
+    );
+  }
 
   return (
     <div className="modal-scrim">
@@ -23,7 +42,11 @@ export function WinnerOverlay() {
             </div>
           ))}
         </div>
-        <button className="btn btn-gold" style={{ width: '100%', marginTop: 18 }} onClick={leaveRoom}>Zurück zum Start</button>
+        <div className="col gap-2" style={{ marginTop: 18, alignItems: 'stretch' }}>
+          <button className="btn btn-ghost" onClick={() => setHidden(true)}><ArrowRight size={16} /> Brett ansehen</button>
+          <button className="btn btn-gold" onClick={returnToLobby}><Users size={16} /> Zurück zur Lobby</button>
+          <button className="btn btn-red" onClick={leaveRoom}><LogOut size={16} /> Zurück zum Start</button>
+        </div>
       </div>
     </div>
   );

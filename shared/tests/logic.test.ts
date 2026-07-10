@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createGame } from '../src/setup.js';
-import type { GameState } from '../src/types.js';
+import { applyAction } from '../src/reducer.js';
+import type { GameState, GameEvent } from '../src/types.js';
 import {
   canPlaceSettlement, canPlaceRoad, produceResources, computeLongestRoad,
   updateLongestRoad, bestBankRate, resourceTotal,
@@ -117,6 +118,41 @@ describe('Längste Straße', () => {
     s.buildings[mid] = { owner: 'p1', type: 'settlement' };
     // längster Teilweg jetzt < 5
     expect(computeLongestRoad(s, 'p0')).toBeLessThan(5);
+  });
+});
+
+describe('Längste-Straße-Event (prev)', () => {
+  /** Baut p0 auf 5 zusammenhängende Straßen (4 direkt, die 5. via Reducer) und liefert das Ergebnis. */
+  function buildFifthRoad(s: GameState) {
+    const path = findPath(s, 5);
+    expect(path.length).toBe(5);
+    s.buildings[s.board.corners[0].id] = { owner: 'p0', type: 'settlement' };
+    for (let i = 0; i < 4; i++) s.roads[path[i]] = { owner: 'p0' };
+    s.phase = 'main';
+    s.activeIndex = s.order.indexOf('p0');
+    const p0 = s.players.find((p) => p.id === 'p0')!;
+    p0.resources.wood = 5;
+    p0.resources.brick = 5;
+    return applyAction(s, 'p0', { type: 'buildRoad', edge: path[4] });
+  }
+
+  it('Erstvergabe: Event trägt prev = null', () => {
+    const s = newGame();
+    const r = buildFifthRoad(s);
+    expect('events' in r).toBe(true);
+    const lr = (r as { events: GameEvent[] }).events.find((e) => e.t === 'longestRoad');
+    expect(lr).toMatchObject({ t: 'longestRoad', player: 'p0', prev: null });
+    expect(s.longestRoadHolder).toBe('p0');
+  });
+
+  it('Übernahme: Event nennt den vorherigen Halter als prev', () => {
+    const s = newGame();
+    s.longestRoadHolder = 'p1'; // p1 galt vorher als Halter
+    const r = buildFifthRoad(s);
+    expect('events' in r).toBe(true);
+    const lr = (r as { events: GameEvent[] }).events.find((e) => e.t === 'longestRoad');
+    expect(lr).toMatchObject({ t: 'longestRoad', player: 'p0', prev: 'p1' });
+    expect(s.longestRoadHolder).toBe('p0');
   });
 });
 

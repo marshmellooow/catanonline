@@ -13,6 +13,8 @@ import { DevPlayDialog } from '../components/game/DevPlayDialog';
 import { WinnerOverlay } from '../components/game/WinnerOverlay';
 import { BankPanel } from '../components/game/BankPanel';
 import { FlyingCards } from '../components/game/FlyingCards';
+import { BuildPopups } from '../components/game/BuildPopups';
+import { LongestRoadBanner } from '../components/game/LongestRoadBanner';
 import { EventLog } from '../components/game/EventLog';
 import { ChatPanel } from '../components/ChatPanel';
 import { makeColorOf, phaseLabel } from '../components/game/ui';
@@ -190,6 +192,8 @@ export function Game() {
       {devPrompt && <DevPlayDialog mode={devPrompt} onClose={() => setDevPrompt(null)} />}
       <WinnerOverlay />
       <FlyingCards />
+      <BuildPopups />
+      <LongestRoadBanner />
     </div>
   );
 }

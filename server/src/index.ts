@@ -168,6 +168,7 @@ function handle(ws: WebSocket, conn: Conn, msg: ClientMsg) {
       if (err) send(ws, { t: 'error', message: err });
       break;
     }
+    case 'returnToLobby': room.returnToLobby(pid); break;
     case 'leaveRoom': {
       room.removePlayer(pid);
       if (conn.sessionId) sessions.delete(conn.sessionId);

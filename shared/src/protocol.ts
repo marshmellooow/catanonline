@@ -47,6 +47,7 @@ export type ClientMsg =
   | { t: 'addBot' }
   | { t: 'removeBot'; playerId: string }
   | { t: 'startGame' }
+  | { t: 'returnToLobby' }
   | { t: 'leaveRoom' }
   | { t: 'action'; action: GameAction }
   | { t: 'chat'; text: string }

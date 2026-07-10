@@ -1,8 +1,63 @@
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from '../../store';
 import { COSTS, canAfford, type ResourceCounts } from '@catan/shared';
 import { Dices } from '../../icons';
+import { RESOURCE_ORDER } from './ui';
+import { ResChip } from './ResChip';
 
 export type BuildIntent = 'road' | 'settlement' | 'city' | null;
+
+/** Kosten-Tooltip: pro benötigtem Rohstoff ein Chip mit Anzahl; vorhanden = farbig, fehlend = ausgegraut. */
+function CostPop({ cost, res, anchor }: { cost: Partial<ResourceCounts>; res: ResourceCounts; anchor: DOMRect }) {
+  const parts = RESOURCE_ORDER.filter((r) => (cost[r] ?? 0) > 0);
+  const affordable = canAfford(res, cost);
+  return createPortal(
+    <div
+      className="cost-pop"
+      style={{ position: 'fixed', left: anchor.left + anchor.width / 2, top: anchor.top - 8, transform: 'translate(-50%, -100%)' }}
+    >
+      <div className="cost-pop-title">Kosten{affordable ? '' : ' · fehlt etwas'}</div>
+      <div className="cost-pop-row">
+        {parts.map((r) => (
+          // Farbig, sobald du diesen Rohstoff überhaupt besitzt; ausgegraut, wenn du keinen hast.
+          <ResChip key={r} res={r} count={cost[r]} dim={(res[r] ?? 0) === 0} />
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Bau-Button mit Hover-Kosten-Tooltip. Der Wrapper-Span fängt Hover auch bei deaktiviertem Button. */
+function BuildButton({
+  label,
+  cost,
+  res,
+  active,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  cost: Partial<ResourceCounts>;
+  res: ResourceCounts;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const [rect, setRect] = useState<DOMRect | null>(null);
+  const show = () => spanRef.current && setRect(spanRef.current.getBoundingClientRect());
+  const hide = () => setRect(null);
+  return (
+    <span className="build-opt" ref={spanRef} onMouseEnter={show} onMouseLeave={hide}>
+      <button className={`btn ${active ? 'btn-gold' : 'btn-ghost'}`} disabled={disabled} onClick={onClick}>
+        {label}
+      </button>
+      {rect && <CostPop cost={cost} res={res} anchor={rect} />}
+    </span>
+  );
+}
 
 export function ActionBar({
   buildIntent,
@@ -48,10 +103,10 @@ export function ActionBar({
     const canBuyDev = afford(COSTS.devCard) && game.devDeckCount > 0;
     return (
       <div className="action-bar">
-        <button className={`btn ${buildIntent === 'road' ? 'btn-gold' : 'btn-ghost'}`} disabled={!canBuyRoad} onClick={() => toggle('road')} title="Holz + Lehm">Straße</button>
-        <button className={`btn ${buildIntent === 'settlement' ? 'btn-gold' : 'btn-ghost'}`} disabled={!canBuySettlement} onClick={() => toggle('settlement')} title="Holz+Lehm+Wolle+Getreide">Siedlung</button>
-        <button className={`btn ${buildIntent === 'city' ? 'btn-gold' : 'btn-ghost'}`} disabled={!canBuyCity} onClick={() => toggle('city')} title="2 Getreide + 3 Erz">Stadt</button>
-        <button className="btn btn-ghost" disabled={!canBuyDev} onClick={() => act({ type: 'buyDevCard' })} title="Wolle+Getreide+Erz">Karte kaufen</button>
+        <BuildButton label="Straße" cost={COSTS.road} res={res} active={buildIntent === 'road'} disabled={!canBuyRoad} onClick={() => toggle('road')} />
+        <BuildButton label="Siedlung" cost={COSTS.settlement} res={res} active={buildIntent === 'settlement'} disabled={!canBuySettlement} onClick={() => toggle('settlement')} />
+        <BuildButton label="Stadt" cost={COSTS.city} res={res} active={buildIntent === 'city'} disabled={!canBuyCity} onClick={() => toggle('city')} />
+        <BuildButton label="Karte kaufen" cost={COSTS.devCard} res={res} disabled={!canBuyDev} onClick={() => act({ type: 'buyDevCard' })} />
         <button className="btn btn-ghost" onClick={onTrade}>Handeln</button>
         <div className="action-spacer" />
         <button className="btn btn-green" onClick={() => { setBuildIntent(null); act({ type: 'endTurn' }); }}>Zug beenden</button>

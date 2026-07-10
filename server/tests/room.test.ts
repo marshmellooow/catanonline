@@ -86,6 +86,26 @@ describe('Room-Lifecycle: Leave / Reconnect / Host', () => {
   });
 });
 
+describe('Rematch: returnToLobby', () => {
+  it('nach Spielende zurück in die Lobby: Sitze bleiben, ready zurückgesetzt, Spiel verworfen', () => {
+    const { room, players } = startedGame(3);
+    room.phase = 'finished'; // Spielende simulieren
+    players.forEach((p) => (p.ready = true));
+    room.returnToLobby(players[1].id);
+    expect(room.phase).toBe('lobby');
+    expect(room.game).toBeNull();
+    expect(room.players.length).toBe(3); // Sitze/Spieler bleiben
+    expect(room.players.every((p) => p.ready === false)).toBe(true); // ready zurückgesetzt
+  });
+
+  it('ignoriert returnToLobby, solange das Spiel läuft', () => {
+    const { room, players } = startedGame(3);
+    room.returnToLobby(players[0].id);
+    expect(room.phase).toBe('playing');
+    expect(room.game).not.toBeNull();
+  });
+});
+
 describe('Room-Cleanup (checkEmpty)', () => {
   it('Letzter Mensch verlässt Lobby: Raum wird nach 120s zerstört', () => {
     vi.useFakeTimers();

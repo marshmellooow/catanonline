@@ -219,7 +219,10 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       state.roads[action.edge] = { owner: playerId };
       p.roadsLeft--;
       log(state, { t: 'build', player: playerId, kind: 'road', at: action.edge }, out);
-      if (updateLongestRoad(state)) log(state, { t: 'longestRoad', player: state.longestRoadHolder }, out);
+      {
+        const prevLR = state.longestRoadHolder;
+        if (updateLongestRoad(state)) log(state, { t: 'longestRoad', player: state.longestRoadHolder, prev: prevLR }, out);
+      }
       if (free) {
         state.roadBuildingLeft--;
         if (state.roadBuildingLeft <= 0 || validRoadEdges(state, playerId, null).length === 0) {
@@ -242,7 +245,10 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       state.buildings[action.corner] = { owner: playerId, type: 'settlement' };
       p.settlementsLeft--;
       log(state, { t: 'build', player: playerId, kind: 'settlement', at: action.corner }, out);
-      if (updateLongestRoad(state)) log(state, { t: 'longestRoad', player: state.longestRoadHolder }, out);
+      {
+        const prevLR = state.longestRoadHolder;
+        if (updateLongestRoad(state)) log(state, { t: 'longestRoad', player: state.longestRoadHolder, prev: prevLR }, out);
+      }
       maybeWin(state, p, out);
       return { events: out };
     }

@@ -348,6 +348,10 @@
 .pulse-soft {
   animation: pulseOpacity 1.4s ease-in-out infinite;
 }
+/* Kräftiger Puls für Bau-Highlights (Straße/Ecke) — klar sichtbar */
+.pulse-strong {
+  animation: pulseStrong 0.95s ease-in-out infinite;
+}
 @keyframes pulseOpacity {
   0%,
   100% {
@@ -355,6 +359,24 @@
   }
   50% {
     opacity: 0.85;
+  }
+}
+@keyframes pulseStrong {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse-strong,
+  .pulse-node,
+  .pulse-line,
+  .pulse-soft {
+    animation: none;
+    opacity: 0.95;
   }
 }
 
