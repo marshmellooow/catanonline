@@ -5,7 +5,7 @@
 import type { Board, Hex, Corner, Edge, Port } from './types.js';
 import type { TerrainCode } from './design.js';
 import { getMap, type MapDef, type PortDef } from './maps.js';
-import { createRng, shuffle, type RngState } from './rng.js';
+import { createRng, shuffle, nextInt, type RngState } from './rng.js';
 
 const H_RATIO = 1.1547; // Höhe = Breite × 1.1547
 
@@ -214,15 +214,69 @@ function repairConnectivity(hexes: Hex[], corners: Corner[]): void {
   for (let i = 1; i < comps.length; i++) for (const id of comps[i]) hexes[id].terrain = 'W';
 }
 
-/** Terrain über alle Landfelder neu mischen (Wasser-Form bleibt, Rohstoff-Multiset
- *  bleibt erhalten) und Zahlen zurücksetzen — so ist jede Partie anders. */
+/** Terrain über alle Landfelder neu mischen (Wasser-Form + Rohstoff-Multiset bleiben,
+ *  Zahlen zurückgesetzt) und dabei **streuen**: eine lokale Suche minimiert gleichfarbige
+ *  Nachbarschaften, damit keine großen einfarbigen Blöcke entstehen (v. a. auf großen
+ *  Karten). Weiterhin zufällig — nur eben verteilt. Deterministisch (seed-basiert). */
 function shuffleTerrain(hexes: Hex[], rng: RngState): void {
   const landHexes = hexes.filter((h) => h.terrain !== 'W');
+  const landIds = landHexes.map((h) => h.id);
+
+  // Start: zufällige Verteilung des Terrain-Multisets (wie bisher)
   const terrains = shuffle(rng, landHexes.map((h) => h.terrain));
   landHexes.forEach((h, i) => {
     h.terrain = terrains[i];
     h.number = null;
   });
+  if (landIds.length < 3) return;
+
+  // Nur Land-Nachbarn zählen (Wasser ist kein „gleiches Terrain")
+  const landNbrs = new Map<number, number[]>();
+  for (const id of landIds) landNbrs.set(id, hexes[id].neighbors.filter((nb) => hexes[nb].terrain !== 'W'));
+
+  // Anzahl gleichfarbiger Nachbarn eines Feldes
+  const conflicts = (id: number): number => {
+    const t = hexes[id].terrain;
+    let c = 0;
+    for (const nb of landNbrs.get(id)!) if (hexes[nb].terrain === t) c++;
+    return c;
+  };
+
+  // Lokale Suche: zwei verschieden-farbige Felder tauschen, wenn das die (lokalen)
+  // gleichfarbigen Nachbarschaften verringert. Monoton besser → wenige große Blöcke.
+  const maxIter = landIds.length * 80;
+  const stopAfter = landIds.length * 6; // abbrechen, wenn lange keine Verbesserung
+  let sinceImprove = 0;
+  for (let it = 0; it < maxIter && sinceImprove < stopAfter; it++) {
+    const a = landIds[nextInt(rng, landIds.length)];
+    // Ein Feld ohne gleichfarbige Nachbarn muss nicht getauscht werden
+    if (conflicts(a) === 0) { sinceImprove++; continue; }
+    const b = landIds[nextInt(rng, landIds.length)];
+    if (a === b || hexes[a].terrain === hexes[b].terrain) { sinceImprove++; continue; }
+
+    const affected = new Set<number>([a, b]);
+    for (const nb of landNbrs.get(a)!) affected.add(nb);
+    for (const nb of landNbrs.get(b)!) affected.add(nb);
+    let before = 0;
+    for (const id of affected) before += conflicts(id);
+
+    const ta = hexes[a].terrain;
+    hexes[a].terrain = hexes[b].terrain;
+    hexes[b].terrain = ta;
+
+    let after = 0;
+    for (const id of affected) after += conflicts(id);
+
+    if (after < before) {
+      sinceImprove = 0;
+    } else {
+      // Verschlechterung/gleich → zurücktauschen
+      const tb = hexes[a].terrain;
+      hexes[a].terrain = hexes[b].terrain;
+      hexes[b].terrain = tb;
+      sinceImprove++;
+    }
+  }
 }
 
 /** Zahlen vergeben: 6 & 8 nie auf (kanten-)benachbarten Feldern.

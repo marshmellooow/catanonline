@@ -47,6 +47,8 @@ describe('Steal-Event Redaktion (Informationsleck)', () => {
     s.players[0].devCards.knight = 1;
     // Zielfeld mit p1-Gebäude, p1 hält genau 1 Holz → Diebstahl von Holz ist erzwungen
     const hex = s.board.hexes.find((h) => h.terrain !== 'W' && h.id !== s.robberHex)!;
+    // Feld leeren, damit p1 der EINZIGE Kandidat ist (unabhängig vom Board-Layout/Bot-Setup)
+    for (const c of hex.corners) delete s.buildings[c];
     s.buildings[hex.corners[0]] = { owner: 'p1', type: 'settlement' };
     s.players[1].resources = { wood: 1, brick: 0, wool: 0, grain: 0, ore: 0 };
     applyAction(s, 'p0', { type: 'playKnight' });
