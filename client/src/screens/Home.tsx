@@ -81,6 +81,10 @@ export function Home() {
 
         {status !== 'online' && <p className="muted" style={{ textAlign: 'center', marginTop: 14, fontSize: 13 }}>Verbinde mit dem Server…</p>}
       </div>
+
+      <div className="home-credit">
+        <span className="powered-by">Powered by <b>Marshl</b></span>
+      </div>
     </div>
   );
 }

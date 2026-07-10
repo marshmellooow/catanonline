@@ -59,6 +59,7 @@ export function BootScreen() {
         <div className="boot-status">
           {status === 'online' ? 'Bereit' : status === 'offline' ? 'Verbindung wird aufgebaut…' : 'Verbinde mit dem Server…'}
         </div>
+        <div className="powered-by boot-credit">Powered by <b>Marshl</b></div>
       </div>
     </div>
   );

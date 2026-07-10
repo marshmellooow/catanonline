@@ -83,6 +83,10 @@
   color: var(--muted);
   letter-spacing: 0.3px;
 }
+.boot-credit {
+  margin-top: 18px;
+  font-size: 13px;
+}
 
 @keyframes bootPop {
   0% {
