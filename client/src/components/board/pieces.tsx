@@ -82,18 +82,103 @@ export const Tile = memo(function Tile({ hex }: { hex: Hex }) {
 });
 
 // ---------- Hafen ----------
-export function PortMark({ port, hexW }: { port: Port; hexW: number }) {
-  const plate = hexW * 0.5;
-  const label = port.type === '3:1' ? '3:1' : `2:1`;
-  const sub = port.type === '3:1' ? '?' : RESOURCE_LABEL[port.type as 'wood']?.[0] ?? '';
+// Rohstoff → Geländecode (gleiche Kunst wie auf Karten/Feldern, damit sofort erkennbar).
+const PORT_CODE = { wood: 'F', brick: 'H', wool: 'P', grain: 'G', ore: 'M' } as const;
+// Reihenfolge fürs 3:1-„alle"-Rad — so, dass benachbarte Farben kontrastieren.
+const ANY_CODES = ['F', 'H', 'G', 'M', 'P'] as const;
+
+/** Kleines Rohstoff-Emblem (wie eine Mini-Rohstoffkarte): Gelände-Verlauf + Motive. */
+function PortEmblem({ code, x, y, s, id }: { code: (typeof PORT_CODE)[keyof typeof PORT_CODE]; x: number; y: number; s: number; id: string }) {
+  const r = s * 0.26;
   return (
     <g>
-      <rect x={port.x - plate / 2} y={port.y - plate * 0.34} width={plate} height={plate * 0.68} rx={plate * 0.16} fill="#F8F2DE" stroke="rgba(90,74,48,.3)" />
-      <text x={port.x} y={port.y - plate * 0.05} textAnchor="middle" dominantBaseline="central" fontFamily="Marcellus, serif" fontSize={hexW * 0.16} fill="#3A2E1A">
-        {label}
-      </text>
-      <text x={port.x} y={port.y + plate * 0.2} textAnchor="middle" dominantBaseline="central" fontSize={hexW * 0.11} fill="#6B5A3A" fontWeight={700}>
-        {sub}
+      <clipPath id={id}>
+        <rect x={x} y={y} width={s} height={s} rx={r} ry={r} />
+      </clipPath>
+      <g clipPath={`url(#${id})`}>
+        <rect x={x} y={y} width={s} height={s} fill={`url(#grad-${code})`} />
+        <Motifs x={x} y={y} w={s} h={s} terrain={code} />
+      </g>
+      <rect x={x} y={y} width={s} height={s} rx={r} ry={r} fill="none" stroke="rgba(90,74,48,.45)" strokeWidth={Math.max(0.8, s * 0.045)} />
+    </g>
+  );
+}
+
+/** „Alle Rohstoffe"-Rad für den 3:1-Hafen: 5 Kreissegmente in den Rohstoff-Farben. */
+function PortAnyDisc({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const n = ANY_CODES.length;
+  return (
+    <g>
+      {ANY_CODES.map((code, i) => {
+        const a0 = (i / n) * 2 * Math.PI - Math.PI / 2;
+        const a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+        const x1 = cx + r * Math.cos(a0), y1 = cy + r * Math.sin(a0);
+        const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
+        return (
+          <path
+            key={code}
+            d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`}
+            fill={TERRAIN[code].base}
+            stroke="#F8F2DE"
+            strokeWidth={Math.max(0.6, r * 0.09)}
+          />
+        );
+      })}
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(90,74,48,.45)" strokeWidth={Math.max(0.8, r * 0.09)} />
+    </g>
+  );
+}
+
+export function PortMark({ port, hexW }: { port: Port; hexW: number }) {
+  const generic = port.type === '3:1';
+  const plateW = hexW * 0.74;
+  const plateH = hexW * 0.4;
+  const rx = plateH * 0.3;
+  const x0 = port.x - plateW / 2;
+  const y0 = port.y - plateH / 2;
+
+  const pad = plateH * 0.15;
+  const em = plateH - pad * 2;
+  const ex = x0 + pad;
+  const ey = y0 + pad;
+  // Ratio-Text mittig in der verbleibenden rechten Fläche
+  const textCx = (ex + em + (x0 + plateW)) / 2;
+
+  const resLabel = generic ? '' : RESOURCE_LABEL[port.type as 'wood'];
+  const tip = generic
+    ? '3:1-Hafen — 3 gleiche Rohstoffe gegen 1 beliebigen'
+    : `${resLabel}-Hafen — 2 ${resLabel} gegen 1 beliebigen Rohstoff`;
+
+  return (
+    <g>
+      <title>{tip}</title>
+      <rect
+        x={x0}
+        y={y0}
+        width={plateW}
+        height={plateH}
+        rx={rx}
+        fill="#F8F2DE"
+        stroke="rgba(90,74,48,.35)"
+        strokeWidth={Math.max(1, hexW * 0.012)}
+        filter="url(#tileShadow)"
+      />
+      {generic ? (
+        <PortAnyDisc cx={ex + em / 2} cy={ey + em / 2} r={em / 2} />
+      ) : (
+        <PortEmblem code={PORT_CODE[port.type as 'wood']} x={ex} y={ey} s={em} id={`port-em-${port.id}`} />
+      )}
+      <text
+        x={textCx}
+        y={port.y}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontFamily="Marcellus, serif"
+        fontSize={hexW * 0.2}
+        fontWeight={700}
+        fill="#3A2E1A"
+      >
+        {generic ? '3:1' : '2:1'}
       </text>
     </g>
   );
