@@ -1,0 +1,271 @@
+/* ============ Gemeinsame Ladebildschirme (Boot + Spielstart) ============ */
+
+/* ---------- Boot: initiales Laden der Website ---------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  background-attachment: fixed;
+  opacity: 1;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.boot.is-leaving {
+  opacity: 0;
+  transform: scale(1.03);
+  pointer-events: none;
+}
+.boot-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 40px;
+  animation: fadeIn 0.4s ease;
+}
+.boot-glow {
+  position: absolute;
+  top: 8px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(235, 194, 94, 0.22), transparent 62%);
+  filter: blur(10px);
+  animation: bootGlow 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.boot-hexes {
+  position: relative;
+  width: 210px;
+  height: 210px;
+  overflow: visible;
+  animation: bootFloat 4.2s ease-in-out infinite;
+}
+.boot-hex {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: bootPop 0.55s cubic-bezier(0.2, 0.85, 0.3, 1) both;
+}
+.boot-title {
+  margin: 14px 0 0;
+  font-family: 'Marcellus', Georgia, serif;
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: 0.5px;
+  background: linear-gradient(180deg, #f4e6bd, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.boot-bar {
+  margin-top: 16px;
+  width: 190px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.boot-bar > span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: bootBar 1.15s ease-in-out infinite;
+}
+.boot-status {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+
+@keyframes bootPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) translateY(8px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes bootFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes bootGlow {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes bootBar {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+/* ---------- Spielstart-Intro: Insel baut sich auf ---------- */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(1200px 800px at 50% 30%, #16384c, #0b1d29 72%);
+  opacity: 1;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+.intro.is-leaving {
+  opacity: 0;
+  transform: scale(1.05);
+  pointer-events: none;
+}
+.intro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.35s ease;
+}
+.intro-title {
+  font-family: 'Marcellus', Georgia, serif;
+  font-size: 30px;
+  letter-spacing: 0.6px;
+  background: linear-gradient(180deg, #f4e6bd, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0;
+  animation: introText 0.6s ease 0.1s both;
+}
+.intro-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 6px 0;
+}
+.intro-island {
+  position: relative;
+  z-index: 1;
+  width: min(64vw, 340px);
+  height: min(64vw, 340px);
+  overflow: visible;
+}
+.isle-hex {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: isleDrop 0.6s cubic-bezier(0.25, 0.9, 0.3, 1.1) both;
+}
+.isle-chip {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: isleChip 0.4s ease both;
+}
+.isle-wave {
+  position: absolute;
+  z-index: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: 2px solid rgba(235, 194, 94, 0.6);
+  opacity: 0;
+  animation: isleWave 1.5s ease-out 1.85s;
+}
+.intro-sub {
+  margin-top: 4px;
+  font-size: 15px;
+  color: var(--text-2);
+  letter-spacing: 0.3px;
+  opacity: 0;
+  animation: introText 0.6s ease 0.5s both;
+}
+
+@keyframes isleDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-44px) scale(0.5);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(3px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes isleChip {
+  0% {
+    opacity: 0;
+    transform: scale(0.1);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes isleWave {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(9);
+  }
+}
+@keyframes introText {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot-hexes,
+  .boot-glow,
+  .boot-bar > span,
+  .isle-wave {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+  .boot-hex,
+  .isle-hex,
+  .isle-chip {
+    animation-duration: 0.2ms;
+    opacity: 1;
+  }
+}

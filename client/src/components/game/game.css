@@ -1,0 +1,581 @@
+.game {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+.game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6, 20, 30, 0.4);
+  gap: 12px;
+}
+.phase-pill {
+  font-family: 'Marcellus', serif;
+  font-size: 17px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+}
+.phase-pill.mine {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(235, 194, 94, 0.12);
+}
+
+/* ---------- Main / Board ---------- */
+.game-main {
+  position: relative;
+  overflow: hidden;
+}
+.board-wrap {
+  position: absolute;
+  inset: 0;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Player rail */
+.rail {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 250px;
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.rail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 12px 14px 8px;
+}
+.rail-list {
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.rail-player {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1.5px solid transparent;
+}
+.rail-player.active {
+  background: rgba(235, 194, 94, 0.07);
+}
+
+/* Bottom-left cluster */
+.bottom-left {
+  position: absolute;
+  left: 14px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.dice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.die {
+  width: 46px;
+  height: 46px;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.4));
+}
+.dice-sum {
+  font-size: 26px;
+  color: var(--gold);
+  margin-left: 4px;
+}
+.event-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  max-width: 280px;
+}
+.event-line {
+  background: rgba(6, 20, 30, 0.55);
+  padding: 3px 9px;
+  border-radius: 7px;
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.event-ico {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.pause-badge {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  background: var(--dialog);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Chat drawer */
+.chat-drawer {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 300px;
+  height: 360px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 40;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Footer: Hand + Actions ---------- */
+.game-footer {
+  border-top: 1px solid var(--border);
+  background: rgba(6, 20, 30, 0.45);
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.hand-res {
+  display: flex;
+  gap: 8px;
+}
+.res-slot {
+  position: relative;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+.res-slot:hover {
+  transform: translateY(-4px);
+}
+.res-slot.zero {
+  opacity: 0.4;
+}
+.res-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--dialog);
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0 5px;
+}
+
+/* ---------- Bank ---------- */
+.bank-panel {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  padding: 10px 12px;
+  max-width: 240px;
+}
+.bank-title {
+  font-family: 'Marcellus', serif;
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bank-row {
+  display: flex;
+  gap: 8px;
+}
+.bank-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: opacity 0.2s ease;
+}
+.bank-item.empty {
+  opacity: 0.32;
+}
+.bank-item.empty .bank-count {
+  color: var(--red);
+  border-color: var(--red);
+}
+.bank-count {
+  min-width: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0 4px;
+  background: rgba(0, 0, 0, 0.25);
+}
+/* ---------- Entwicklungskarten-Design (Design-System-getreu) ---------- */
+.devcard {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #f8f2de;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(90, 74, 48, 0.22);
+  flex: none;
+}
+.devcard-art {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: linear-gradient(150deg, #6b5a96, #4a3d6e);
+}
+.devcard-art.back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.devcard-motif {
+  position: absolute;
+}
+.devcard-emblem {
+  position: relative;
+  width: 42%;
+  height: 42%;
+  transform: rotate(45deg);
+  border: 2px solid var(--gold);
+  border-radius: 14%;
+  box-shadow: inset 0 0 0 2px rgba(235, 194, 94, 0.22);
+}
+.devcard-emblem::after {
+  content: '';
+  position: absolute;
+  inset: 28%;
+  background: var(--gold);
+  border-radius: 16%;
+}
+.devcard-name {
+  text-align: center;
+  color: #4a4034;
+  font-weight: 700;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+/* Bank: verdeckter Dev-Stapel */
+.bank-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--border);
+  margin: 0 3px;
+}
+.bank-dev .dev-stack {
+  position: relative;
+  line-height: 0;
+}
+.bank-dev .devcard {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(90, 74, 48, 0.22),
+    2.5px 2.5px 0 -0.5px rgba(74, 61, 110, 0.75), 5px 5px 0 -1px rgba(74, 61, 110, 0.5);
+}
+
+/* Hand: Entwicklungskarten */
+.hand-dev {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.dev-slot {
+  position: relative;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: default;
+  border-radius: 9px;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.dev-slot.playable {
+  cursor: pointer;
+}
+.dev-slot.playable:hover {
+  transform: translateY(-5px);
+  filter: brightness(1.06);
+}
+.dev-slot:not(.playable) .devcard {
+  opacity: 0.92;
+}
+.dev-slot.playable::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1.5px rgba(235, 194, 94, 0.6);
+  pointer-events: none;
+}
+.dev-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--dialog);
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  padding: 0 5px;
+}
+.dev-new,
+.dev-lock {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+.dev-new {
+  background: rgba(46, 158, 91, 0.92);
+  color: #eafff0;
+}
+.dev-lock {
+  background: rgba(90, 74, 48, 0.88);
+  color: #f0e6cf;
+}
+
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/* ---------- Dialogs ---------- */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 14, 22, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  animation: fadeIn 0.15s ease;
+  padding: 20px;
+}
+.modal-card {
+  width: 420px;
+  max-width: 100%;
+  padding: 24px;
+}
+.modal-card.wide {
+  width: 620px;
+}
+.modal-card h2 {
+  margin-top: 0;
+}
+
+.trade-give-get {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 12px;
+}
+.trade-rows {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trade-res {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.res-mini {
+  width: 30px;
+  height: 40px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stepper button {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text);
+}
+.stepper button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.stepper .num {
+  min-width: 20px;
+  text-align: center;
+  font-size: 17px;
+}
+
+.res-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.res-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1.5px solid var(--border);
+  position: relative;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.res-pick.sel {
+  border-color: var(--gold);
+}
+.res-pick .res-art {
+  width: 100%;
+  height: 44px;
+  border-radius: 6px;
+}
+.pick-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--gold);
+  color: #2a2011;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* ---------- Trade offer panel ---------- */
+.offer-panel {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  padding: 14px 16px;
+  z-index: 60;
+  animation: fadeIn 0.2s ease;
+}
+.offer-head {
+  font-family: 'Marcellus', serif;
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+.offer-body {
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.offer-responses {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.offer-resp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13.5px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 7px;
+}
+
+@media (max-width: 1100px) {
+  .rail {
+    width: 200px;
+  }
+  .res-card {
+    width: 52px;
+    height: 72px;
+  }
+}
+
+/* ---------- Fliegende Karten (Ausschüttung) ---------- */
+.flyers-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 300;
+  overflow: hidden;
+}
+.flyer {
+  position: fixed;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.45));
+}
+.hand-empty {
+  font-size: 13px;
+  padding: 20px 14px;
+  font-style: italic;
+}
