@@ -375,10 +375,17 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       const get = fromCounts(action.get);
       if (resourceTotal(give) === 0 || resourceTotal(get) === 0) return fail('Beide Seiten müssen mindestens eine Karte enthalten.');
       if (!canAfford(p.resources, give)) return fail('Du hast die angebotenen Karten nicht.');
+      // Kein Mitspieler kann die geforderten Karten liefern? Dann gar nicht erst anbieten.
+      // (Autoritativ auf dem Server, weil der Client fremde Hände bewusst nicht kennt.)
+      if (!state.players.some((o) => o.id !== playerId && canAfford(o.resources, get))) {
+        return fail('Kein Mitspieler hat die geforderten Karten.');
+      }
       const responses: Record<string, 'accept' | 'reject' | 'pending'> = {};
       for (const other of state.players) {
         if (other.id === playerId) continue;
-        responses[other.id] = other.isBot ? 'reject' : 'pending';
+        // Alle Mitspieler (auch Bots/übernommene Sitze) dürfen antworten — die
+        // Bot-Antwort kommt serverseitig über die Auto-Steuerung (siehe bot.ts).
+        responses[other.id] = 'pending';
       }
       const offer: TradeOffer = { id: `t${state.turnCount}_${Object.keys(state.roads).length}`, from: playerId, give, get, responses };
       state.tradeOffer = offer;

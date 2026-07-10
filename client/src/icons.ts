@@ -24,4 +24,6 @@ export {
   ArrowUp, // Du gibst
   ArrowDown, // Du bekommst
   LogOut, // Verlassen
+  Plus, // Stepper: mehr geben/bekommen
+  Minus, // Stepper: weniger geben/bekommen
 } from 'lucide-react';

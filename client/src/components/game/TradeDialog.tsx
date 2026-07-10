@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { RESOURCE_ORDER, resLabel } from './ui';
 import { ResourceCard } from './ResourceCard';
 import { bestBankRate, playerPorts, type ResourceType, type GameState } from '@catan/shared';
-import { ArrowUp, ArrowDown, X } from '../../icons';
+import { ArrowUp, ArrowDown, X, Plus, Minus } from '../../icons';
 
 function emptyCounts(): Record<ResourceType, number> {
   return { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
@@ -49,13 +49,20 @@ export function TradeDialog({ onClose }: { onClose: () => void }) {
           <div>
             <div className="field-label" style={{ color: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 4 }}><ArrowUp size={14} /> Du gibst</div>
             {RESOURCE_ORDER.map((r) => (
-              <div key={r} className="trade-res" style={{ opacity: give[r] > 0 ? 1 : 0.5 }}>
+              <div key={r} className={`trade-res ${res[r] > 0 ? 'owned' : 'empty'}`}>
                 <ResourceCard resource={r} size={30} label={false} />
-                <div style={{ flex: 1, fontWeight: 700 }}>{resLabel(r)} <span className="muted" style={{ fontWeight: 400 }}>({res[r]})</span></div>
+                <div className="trade-res-label">
+                  {resLabel(r)}
+                  <span className="trade-res-count" title="Im Besitz">{res[r]}</span>
+                </div>
                 <div className="stepper">
-                  <button onClick={() => stepGive(r, -1)} disabled={give[r] === 0}>−</button>
-                  <span className="num">{give[r]}</span>
-                  <button onClick={() => stepGive(r, 1)} disabled={give[r] >= res[r]}>+</button>
+                  <button className="step-btn step-minus" onClick={() => stepGive(r, -1)} disabled={give[r] === 0} aria-label={`Ein ${resLabel(r)} weniger geben`}>
+                    <Minus size={16} />
+                  </button>
+                  <span className={`num${give[r] > 0 ? ' active' : ''}`}>{give[r]}</span>
+                  <button className="step-btn step-plus" onClick={() => stepGive(r, 1)} disabled={give[r] >= res[r]} aria-label={`Ein ${resLabel(r)} mehr geben`}>
+                    <Plus size={16} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -63,13 +70,17 @@ export function TradeDialog({ onClose }: { onClose: () => void }) {
           <div>
             <div className="field-label" style={{ color: 'var(--green-light)', display: 'flex', alignItems: 'center', gap: 4 }}><ArrowDown size={14} /> Du bekommst</div>
             {RESOURCE_ORDER.map((r) => (
-              <div key={r} className="trade-res" style={{ opacity: get[r] > 0 ? 1 : 0.5 }}>
+              <div key={r} className="trade-res owned">
                 <ResourceCard resource={r} size={30} label={false} />
-                <div style={{ flex: 1, fontWeight: 700 }}>{resLabel(r)}</div>
+                <div className="trade-res-label">{resLabel(r)}</div>
                 <div className="stepper">
-                  <button onClick={() => stepGet(r, -1)} disabled={get[r] === 0}>−</button>
-                  <span className="num">{get[r]}</span>
-                  <button onClick={() => stepGet(r, 1)}>+</button>
+                  <button className="step-btn step-minus" onClick={() => stepGet(r, -1)} disabled={get[r] === 0} aria-label={`Ein ${resLabel(r)} weniger bekommen`}>
+                    <Minus size={16} />
+                  </button>
+                  <span className={`num${get[r] > 0 ? ' active active-get' : ''}`}>{get[r]}</span>
+                  <button className="step-btn step-plus step-plus-get" onClick={() => stepGet(r, 1)} aria-label={`Ein ${resLabel(r)} mehr bekommen`}>
+                    <Plus size={16} />
+                  </button>
                 </div>
               </div>
             ))}

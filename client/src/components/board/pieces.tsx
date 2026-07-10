@@ -100,20 +100,43 @@ export function PortMark({ port, hexW }: { port: Port; hexW: number }) {
 }
 
 // ---------- Räuber ----------
+// Klassische Spielfigur (Bauer/Meeple): Kugelkopf, Kragen, glockenförmiger Körper,
+// runder Sockel. Glatte Bézier-Silhouette statt eckigem Polygon.
 export function Robber({ hex }: { hex: Hex }) {
-  const rw = hex.w * 0.3;
-  const rh = hex.w * 0.46;
-  const bx = hex.cx - rw / 2;
-  const by = hex.cy - rh * 0.55;
-  const pct = (px: number, py: number): string => `${bx + (px / 100) * rw},${by + (py / 100) * rh}`;
-  const pts = [
-    [38, 0], [62, 0], [58, 30], [82, 85], [88, 100], [12, 100], [18, 85], [42, 30],
-  ].map(([a, b]) => pct(a, b)).join(' ');
+  const w = hex.w * 0.34; // Referenzbreite
+  const h = hex.w * 0.52; // Gesamthöhe
+  const cx = hex.cx;
+  const topY = hex.cy - h * 0.62; // Scheitel des Kopfes
+
+  const headR = w * 0.27;
+  const headCy = topY + headR;
+  const neckY = headCy + headR * 0.92; // Halsöffnung / Kragen
+  const neckHalf = w * 0.15;
+  const bodyHalf = w * 0.46; // maximale Körperbreite
+  const baseY = topY + h; // Standfläche
+  const baseTopY = baseY - h * 0.12; // Oberkante des Sockels
+
+  // Glockenförmiger Körper von der Halsöffnung zum Sockel (links runter, rechts hoch).
+  const body =
+    `M ${cx - neckHalf} ${neckY} ` +
+    `C ${cx - neckHalf} ${neckY + h * 0.1}, ${cx - bodyHalf} ${baseTopY - h * 0.16}, ${cx - bodyHalf} ${baseTopY} ` +
+    `L ${cx + bodyHalf} ${baseTopY} ` +
+    `C ${cx + bodyHalf} ${baseTopY - h * 0.16}, ${cx + neckHalf} ${neckY + h * 0.1}, ${cx + neckHalf} ${neckY} Z`;
+
   return (
-    <g style={{ pointerEvents: 'none' }}>
-      <ellipse cx={hex.cx} cy={by + rh * 1.02} rx={rw * 0.5} ry={rw * 0.16} fill="rgba(0,0,0,.35)" />
-      <polygon points={pts} fill="url(#robberBody)" stroke="rgba(0,0,0,.5)" strokeWidth={0.8} />
-      <circle cx={hex.cx} cy={by + rh * 0.16} r={rw * 0.24} fill="url(#robberHead)" />
+    <g style={{ pointerEvents: 'none', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,.55))' }}>
+      {/* Bodenschatten */}
+      <ellipse cx={cx} cy={baseY + h * 0.015} rx={bodyHalf * 1.12} ry={w * 0.13} fill="rgba(0,0,0,.3)" />
+      {/* Sockel */}
+      <ellipse cx={cx} cy={baseTopY} rx={bodyHalf} ry={w * 0.16} fill="url(#robberBody)" stroke="rgba(0,0,0,.4)" strokeWidth={0.6} />
+      {/* Körper */}
+      <path d={body} fill="url(#robberBody)" stroke="rgba(0,0,0,.4)" strokeWidth={0.6} />
+      {/* Kragen */}
+      <ellipse cx={cx} cy={neckY} rx={neckHalf * 1.7} ry={w * 0.08} fill="url(#robberHead)" stroke="rgba(0,0,0,.32)" strokeWidth={0.5} />
+      {/* Kopf */}
+      <circle cx={cx} cy={headCy} r={headR} fill="url(#robberHead)" stroke="rgba(0,0,0,.35)" strokeWidth={0.5} />
+      {/* Glanzlicht */}
+      <ellipse cx={cx - headR * 0.3} cy={headCy - headR * 0.34} rx={headR * 0.32} ry={headR * 0.22} fill="rgba(255,255,255,.4)" />
     </g>
   );
 }

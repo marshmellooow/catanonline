@@ -402,6 +402,16 @@ export class Room {
       }
       return null;
     }
+    // Offenes Handelsangebot: Auto-Spieler (Bots/übernommene Sitze) beantworten es,
+    // auch wenn sie nicht am Zug sind. Erst alle offenen Antworten, dann löst ein
+    // Auto-Anbieter sein Angebot selbst auf (bestätigen/annullieren).
+    if (g.tradeOffer) {
+      for (const p of this.players) {
+        if (this.isAuto(p) && g.tradeOffer.responses[p.id] === 'pending') return p;
+      }
+      const proposer = this.players.find((p) => p.id === g.tradeOffer!.from);
+      if (proposer && this.isAuto(proposer)) return proposer;
+    }
     const active = this.players.find((p) => p.id === g.order[g.activeIndex]);
     if (active && this.isAuto(active)) return active;
     return null;

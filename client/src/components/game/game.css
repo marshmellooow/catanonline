@@ -171,12 +171,18 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Stabile Höhe: die Aktionsleiste erscheint/verschwindet je Phase/Zug.
+     Ohne Reservierung würde der Brett-Bereich (1fr) mitspringen. Reserviert Platz
+     für Hand (1 Reihe) + Gap + Aktionsleiste → Brett sitzt fest. */
+  min-height: 172px;
+  justify-content: flex-start;
 }
 .hand {
   display: flex;
   align-items: center;
   gap: 18px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* kein Umbruch → konstante Höhe, kein Springen */
+  min-height: 90px;
 }
 .hand-res {
   display: flex;
@@ -215,7 +221,8 @@
   top: 12px;
   left: 14px;
   padding: 10px 12px;
-  max-width: 240px;
+  width: max-content;
+  max-width: min(94vw, 340px);
 }
 .bank-title {
   font-family: 'Marcellus', serif;
@@ -229,6 +236,7 @@
 .bank-row {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 .bank-item {
   position: relative;
@@ -315,14 +323,14 @@
 }
 .bank-dev .devcard {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(90, 74, 48, 0.22),
-    2.5px 2.5px 0 -0.5px rgba(74, 61, 110, 0.75), 5px 5px 0 -1px rgba(74, 61, 110, 0.5);
+    2px 2px 0 -0.5px rgba(74, 61, 110, 0.7), 3.5px 3.5px 0 -1px rgba(74, 61, 110, 0.45);
 }
 
 /* Hand: Entwicklungskarten */
 .hand-dev {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: flex-end;
 }
 .dev-slot {
@@ -393,7 +401,9 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  min-height: 44px;
 }
 
 /* ---------- Dialogs ---------- */
@@ -469,6 +479,130 @@
   min-width: 20px;
   text-align: center;
   font-size: 17px;
+}
+
+/* ── Handelszeile: Prominenz hängt an BESITZ (res[r]), nicht an Auswahl (give[r]) ── */
+.trade-res {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+/* (a) Besitzt man den Rohstoff → prominent: dezenter Gold-Ton + Links-Akzent */
+.trade-res.owned {
+  opacity: 1;
+  background: color-mix(in srgb, var(--gold) 9%, transparent);
+  border-color: color-mix(in srgb, var(--gold) 22%, transparent);
+}
+.trade-res.owned::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--gold);
+}
+/* Besitzt man NICHT → klar gedimmt (Stepper ohnehin komplett disabled) */
+.trade-res.empty {
+  opacity: 0.42;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Name + Besitz-Menge als Gold-Pill statt „(n)" */
+.trade-res-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+.trade-res.empty .trade-res-label {
+  color: var(--text-2);
+}
+.trade-res-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 32%, transparent);
+}
+.trade-res.empty .trade-res-count {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--border);
+}
+
+/* ── Affordanz-Stepper: Icon-Buttons, aktiver Plus = klare Gold-Aktion ──
+   Spezifität (0,2,0) schlägt das alte „.stepper button" (0,1,1). */
+.stepper .step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.06s ease;
+}
+.stepper .step-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.stepper .step-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+/* (b) Kann man noch mehr geben → aktiver Plus in Gold hervorgehoben */
+.stepper .step-plus:not(:disabled) {
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.stepper .step-plus:not(:disabled):hover {
+  background: color-mix(in srgb, var(--gold) 28%, transparent);
+}
+/* Echter :disabled-Stil (bisher fehlend) → deaktiviert = deutlich blasser */
+.stepper .step-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+}
+/* (c) Gewählte Menge prominent; färbt sich sobald > 0 */
+.stepper .num {
+  min-width: 22px;
+  font-weight: 800;
+  color: var(--text-2);
+}
+.stepper .num.active {
+  color: var(--gold);
+}
+/* Get-Spalte konsistent, aber in Grün (passt zum „Du bekommst"-Label) */
+.stepper .step-plus-get:not(:disabled) {
+  background: color-mix(in srgb, var(--green-light) 16%, transparent);
+  border-color: var(--green-light);
+  color: var(--green-light);
+}
+.stepper .step-plus-get:not(:disabled):hover {
+  background: color-mix(in srgb, var(--green-light) 28%, transparent);
+}
+.stepper .num.active-get {
+  color: var(--green-light);
 }
 
 .res-pick-grid {

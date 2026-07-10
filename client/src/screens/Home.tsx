@@ -31,8 +31,13 @@ export function Home() {
   return (
     <div className="home">
       <div className="panel home-card">
-        <h1 className="home-title">Catan Online</h1>
-        <p className="home-sub">Hex-Aufbau-Strategie · Live-Multiplayer für 2–10 Spieler</p>
+        <div className="home-brand">
+          <img className="home-logo" src="/catan-logo.png" alt="Catan Online Logo" width={84} height={84} />
+          <div className="home-brand-text">
+            <h1 className="home-title">Catan Online</h1>
+            <p className="home-sub">Hex-Aufbau-Strategie · Live-Multiplayer für 2–10 Spieler</p>
+          </div>
+        </div>
 
         <div className="tab-row">
           <div className={`tab ${tab === 'create' ? 'active' : ''}`} onClick={() => setTab('create')}>

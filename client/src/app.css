@@ -87,6 +87,23 @@
   padding: 34px;
   animation: fadeIn 0.3s ease;
 }
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 26px;
+}
+.home-logo {
+  width: 84px;
+  height: 84px;
+  border-radius: 18px;
+  flex-shrink: 0;
+  object-fit: cover;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(235, 194, 94, 0.4);
+}
+.home-brand-text {
+  min-width: 0;
+}
 .home-title {
   font-size: 40px;
   letter-spacing: 0.5px;
@@ -98,8 +115,15 @@
 }
 .home-sub {
   color: var(--muted);
-  margin: 6px 0 26px;
+  margin: 6px 0 0;
   font-size: 15px;
+}
+@media (max-width: 420px) {
+  .home-brand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
 .field-label {
   font-size: 13px;
