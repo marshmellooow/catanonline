@@ -113,6 +113,9 @@ describe('Entwicklungskarten', () => {
     s.hasRolled = true;
     s.players[0].devCards.knight = 1;
     s.players[0].resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    // Deterministisch: Setup-Gebäude entfernen, damit am Zielfeld genau EIN Opfer (p1) angrenzt
+    // → automatischer Diebstahl (sonst mehrere Kandidaten → Phase 'steal').
+    s.buildings = {};
     // Zielfeld mit p1-Gebäude + Karte
     const hex = s.board.hexes.find((h) => h.terrain !== 'W' && h.id !== s.robberHex)!;
     s.buildings[hex.corners[0]] = { owner: 'p1', type: 'settlement' };

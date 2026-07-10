@@ -218,12 +218,45 @@ function repairConnectivity(hexes: Hex[], corners: Corner[]): void {
  *  Zahlen zurückgesetzt) und dabei **streuen**: eine lokale Suche minimiert gleichfarbige
  *  Nachbarschaften, damit keine großen einfarbigen Blöcke entstehen (v. a. auf großen
  *  Karten). Weiterhin zufällig — nur eben verteilt. Deterministisch (seed-basiert). */
+// Rohstoff-Mischung wie im offiziellen Catan (4:4:4:3:3) → ausgewogen, Getreide nicht dominant.
+const RESOURCE_MIX: Array<[TerrainCode, number]> = [
+  ['G', 4], // Getreide
+  ['F', 4], // Holz
+  ['P', 4], // Wolle
+  ['H', 3], // Lehm
+  ['M', 3], // Erz
+];
+const MIX_TOTAL = 18; // 4+4+4+3+3
+
+/**
+ * Deterministisches, ausgewogenes Rohstoff-Multiset der Größe n (Hamilton/Größter-Rest-Verfahren).
+ * Nur von n abhängig (nicht vom Seed) — jede Karte hat jede Partie dieselben, fairen Anteile,
+ * nur die Positionen werden gemischt. Basis-/Klassik-19 ergibt exakt 4/4/4/3/3.
+ */
+function balancedResources(n: number): TerrainCode[] {
+  const alloc = RESOURCE_MIX.map(([t, w]) => {
+    const exact = (n * w) / MIX_TOTAL;
+    const base = Math.floor(exact);
+    return { t, count: base, frac: exact - base };
+  });
+  let assigned = alloc.reduce((s, a) => s + a.count, 0);
+  const byFrac = alloc.map((_, i) => i).sort((i, j) => alloc[j].frac - alloc[i].frac);
+  for (let k = 0; assigned < n; k++, assigned++) alloc[byFrac[k % byFrac.length]].count++;
+  const out: TerrainCode[] = [];
+  for (const a of alloc) for (let c = 0; c < a.count; c++) out.push(a.t);
+  return out;
+}
+
 function shuffleTerrain(hexes: Hex[], rng: RngState): void {
   const landHexes = hexes.filter((h) => h.terrain !== 'W');
   const landIds = landHexes.map((h) => h.id);
 
-  // Start: zufällige Verteilung des Terrain-Multisets (wie bisher)
-  const terrains = shuffle(rng, landHexes.map((h) => h.terrain));
+  // Ausgewogenes Rohstoff-Multiset (statt der lopsided Kartenvorlage), Wüstenzahl beibehalten,
+  // dann zufällig auf die Landfelder verteilen. Positionen werden unten weiter entklumpt.
+  const desertCount = landHexes.filter((h) => h.terrain === 'D').length;
+  const resN = landHexes.length - desertCount;
+  const pool: TerrainCode[] = [...balancedResources(resN), ...Array<TerrainCode>(desertCount).fill('D')];
+  const terrains = shuffle(rng, pool);
   landHexes.forEach((h, i) => {
     h.terrain = terrains[i];
     h.number = null;

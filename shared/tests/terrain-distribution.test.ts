@@ -139,6 +139,20 @@ describe('Terrain-Verteilung (Streuung)', () => {
     expect(count(buildBoard('continent', 42))).toEqual(count(buildBoard('continent', 99)));
   });
 
+  it('Rohstoffe sind ausgewogen (offizielles 4:4:4:3:3-Verhältnis, Getreide nicht dominant)', () => {
+    for (const id of ['classic', 'coast', 'continent', 'lakes', 'harbor']) {
+      const b = buildBoard(id, 2024);
+      const c: Record<string, number> = {};
+      for (const h of b.hexes) if ('FHPGM'.includes(h.terrain)) c[h.terrain] = (c[h.terrain] ?? 0) + 1;
+      const vals = ['F', 'H', 'P', 'G', 'M'].map((t) => c[t] ?? 0);
+      const max = Math.max(...vals);
+      const min = Math.min(...vals);
+      expect(min).toBeGreaterThan(0); // jeder Rohstoff kommt vor
+      expect(max / min).toBeLessThanOrEqual(1.6); // nahe 4:3, keiner dominiert (früher bis 3:1)
+      expect(c['G'] ?? 0).toBeLessThanOrEqual(max); // Getreide nie allein an der Spitze über dem Feld
+    }
+  });
+
   it('deterministisch: gleicher Seed → identisches Terrain-Layout', () => {
     const a = buildBoard('continent', 7).hexes.map((h) => h.terrain);
     const b = buildBoard('continent', 7).hexes.map((h) => h.terrain);
