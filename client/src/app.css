@@ -361,27 +361,35 @@
 /* ============================================================
    Mobile-Layout für Home & Lobby
    ============================================================ */
-/* Lobby: von 2 Spalten (Haupt + Seitenpanel) auf gestapelt + scrollbar */
+/* Lobby auf Mobil: aus dem festen 2-Spalten-Layout (mit fixer Höhe + Flex/Grid,
+   die Panels auf ~0 kollabieren ließen und überlappten → „bodenlos") einen
+   normalen, scrollbaren Block-Fluss machen. `display: block` → jedes Panel bekommt
+   seine natürliche Inhaltshöhe, nichts kollabiert, die ganze Seite scrollt. */
 @media (max-width: 860px) {
   .lobby {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    display: block;
+    height: 100%;
     padding: 14px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
+  .lobby > * + * {
+    margin-top: 14px; /* Abstand Haupt-Stack ↔ Seitenpanel (Grid-Gap entfällt) */
+  }
   .lobby-map {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr; /* Kartenauswahl über Board-Vorschau stapeln */
+  }
+  .lobby-map .map-grid {
+    /* Inline overflow-y:auto (Desktop-Scroll im festen Panel) aufheben, sonst
+       kollabiert der Scroll-Container auf 0 → alle 6 Karten sichtbar, Seite scrollt. */
+    overflow: visible !important;
+    max-height: none;
   }
   .lobby-map .center {
-    min-height: 200px;
-  }
-  /* Seitenpanel (Spieler + Chat) darf mitscrollen statt intern zu klemmen */
-  .side {
-    min-height: 0;
+    min-height: 180px;
   }
   .side .chat-log {
-    max-height: 40vh;
+    max-height: 34vh; /* Chat scrollt intern begrenzt statt die Seite zu sprengen */
   }
 }
 @media (max-width: 560px) {
