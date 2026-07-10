@@ -26,7 +26,12 @@ const StaticLayer = memo(function StaticLayer({ board }: { board: BoardT }) {
         <Tile key={hex.id} hex={hex} />
       ))}
       {board.ports.map((port) => (
-        <PortMark key={port.id} port={port} hexW={board.hexW} />
+        <PortMark
+          key={port.id}
+          port={port}
+          hexW={board.hexW}
+          corners={port.corners.map((cid) => board.corners[cid]).filter(Boolean).map((c) => ({ x: c.x, y: c.y }))}
+        />
       ))}
     </g>
   );

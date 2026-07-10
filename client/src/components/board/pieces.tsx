@@ -129,7 +129,7 @@ function PortAnyDisc({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
-export function PortMark({ port, hexW }: { port: Port; hexW: number }) {
+export function PortMark({ port, hexW, corners = [] }: { port: Port; hexW: number; corners?: Array<{ x: number; y: number }> }) {
   const generic = port.type === '3:1';
   const plateW = hexW * 0.74;
   const plateH = hexW * 0.4;
@@ -152,6 +152,23 @@ export function PortMark({ port, hexW }: { port: Port; hexW: number }) {
   return (
     <g>
       <title>{tip}</title>
+      {/* Steg-Linien vom Hafen zu den 2 nutzbaren Ecken + Anleger-Punkt: zeigt klar, WO man baut. */}
+      {corners.map((c, i) => (
+        <g key={`dock-${i}`}>
+          <line
+            x1={port.x}
+            y1={port.y}
+            x2={c.x}
+            y2={c.y}
+            stroke="#B88A46"
+            strokeWidth={hexW * 0.05}
+            strokeLinecap="round"
+            strokeDasharray={`${hexW * 0.02} ${hexW * 0.07}`}
+            opacity={0.9}
+          />
+          <circle cx={c.x} cy={c.y} r={hexW * 0.07} fill="#F8F2DE" stroke="#8a6d3b" strokeWidth={hexW * 0.02} />
+        </g>
+      ))}
       <rect
         x={x0}
         y={y0}
