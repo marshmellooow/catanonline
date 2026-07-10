@@ -1,8 +1,18 @@
 import { memo } from 'react';
 import type { Board as BoardT, PlayerColor } from '@catan/shared';
-import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs, hexVerts } from './pieces';
+import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs } from './pieces';
 
 const PAD = 34;
+
+/** Ein Tortenstück (Segment i von n) als SVG-Pfad um (cx,cy) mit Radius r; Start oben. */
+function pieSlice(cx: number, cy: number, r: number, i: number, n: number): string {
+  const a0 = (i / n) * 2 * Math.PI - Math.PI / 2;
+  const a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2;
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0);
+  const x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+}
 
 export interface BoardProps {
   board: BoardT;
@@ -74,76 +84,57 @@ export const Board = memo(function Board(props: BoardProps) {
       {board.hexes[robberHex] && <Robber hex={board.hexes[robberHex]} />}
 
       {/* Highlights + Klick-Ziele */}
+      {/* Räuber-Platzierung: dezenter halbtransparenter Kreis je gültigem Feld,
+          farblich geteilt nach den Spielern, die dort eine Siedlung/Stadt haben. */}
       {props.highlightHexes?.map((id) => {
         const hex = board.hexes[id];
         if (!hex) return null;
-        const pts = hexVerts(hex).map(([x, y]) => `${x},${y}`).join(' ');
+        const owners = [...new Set(hex.corners.map((cid) => buildings[cid]?.owner).filter((o): o is string => !!o))];
+        const cols = owners.map((o) => colorOf(o).c);
+        const r = w * 0.28;
         return (
-          <polygon
-            key={`hh${id}`}
-            points={pts}
-            fill="rgba(235,194,94,.18)"
-            stroke="var(--gold)"
-            strokeWidth={3}
-            style={{ cursor: 'pointer' }}
-            className="pulse-soft"
-            onClick={() => props.onHex?.(id)}
-          />
+          <g key={`hh${id}`} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onHex?.(id)}>
+            {/* leichter Grund, damit der Kreis auf jedem Feld erkennbar ist */}
+            <circle cx={hex.cx} cy={hex.cy} r={r} fill="rgba(8,12,18,0.20)" />
+            {cols.length === 1 && <circle cx={hex.cx} cy={hex.cy} r={r} fill={cols[0]} fillOpacity={0.5} />}
+            {cols.length > 1 && cols.map((col, i) => <path key={i} d={pieSlice(hex.cx, hex.cy, r, i, cols.length)} fill={col} fillOpacity={0.55} />)}
+            <circle cx={hex.cx} cy={hex.cy} r={r} fill="none" stroke="rgba(255,246,224,0.85)" strokeWidth={2.5} />
+          </g>
         );
       })}
 
+      {/* Straßen-Bauplätze: saubere „Geister-Straße" — goldener Schimmer + heller Kern,
+          kein Filter/keine dunkle Kontur (die auf dunklen Feldern buggy wirkte). */}
       {props.highlightEdges?.map((id) => {
         const e = board.edges[id];
         if (!e) return null;
         return (
-          <g key={`he${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onEdge?.(id)}>
-            {/* dunkle Kontur — konstanter Kontrast auf hellem wie dunklem Terrain */}
-            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#1c1508" strokeWidth={w * 0.26} strokeLinecap="round" opacity={0.55} />
-            {/* heller, glühender, stark pulsierender Kern */}
-            <line
-              x1={e.x1}
-              y1={e.y1}
-              x2={e.x2}
-              y2={e.y2}
-              stroke="#FFD766"
-              strokeWidth={w * 0.16}
-              strokeLinecap="round"
-              filter="url(#hlGlow)"
-              className="pulse-strong"
-            />
+          <g key={`he${id}`} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onEdge?.(id)}>
+            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.15} strokeLinecap="round" opacity={0.4} />
+            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#FFF6E0" strokeWidth={w * 0.05} strokeLinecap="round" opacity={0.95} />
             {/* breiter unsichtbarer Klick-/Touch-Bereich */}
             <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="transparent" strokeWidth={w * 0.4} strokeLinecap="round" />
           </g>
         );
       })}
 
+      {/* Siedlungs-/Stadt-Bauplätze: sauberer halbtransparenter Kreis mit hellem Rand
+          (wie die Startplatzierung — klar, aber nicht überstrahlt). */}
       {props.highlightCorners?.map((id) => {
         const c = board.corners[id];
         if (!c) return null;
         return (
           <g key={`hc${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onCorner?.(id)}>
             <circle cx={c.x} cy={c.y} r={w * 0.22} fill="transparent" />
-            {/* pulsierender Glut-Ring */}
             <circle
               cx={c.x}
               cy={c.y}
-              r={w * 0.17}
-              fill="none"
-              stroke="#FFD766"
-              strokeWidth={w * 0.05}
-              filter="url(#hlGlow)"
-              className="pulse-node"
-              style={{ transformBox: 'fill-box', transformOrigin: 'center' }}
-            />
-            {/* heller Kern-Punkt */}
-            <circle
-              cx={c.x}
-              cy={c.y}
-              r={w * 0.105}
-              fill="#FFD766"
-              stroke="#2a2011"
-              strokeWidth={1.5}
-              filter="url(#hlGlow)"
+              r={w * 0.14}
+              fill="var(--gold)"
+              fillOpacity={0.32}
+              stroke="#FFF6E0"
+              strokeWidth={w * 0.03}
+              className="pulse-soft"
             />
           </g>
         );
