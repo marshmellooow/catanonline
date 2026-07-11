@@ -205,10 +205,14 @@ export function PortMark({ port, hexW, corners = [] }: { port: Port; hexW: numbe
 // Klassische Spielfigur (Bauer/Meeple): Kugelkopf, Kragen, glockenförmiger Körper,
 // runder Sockel. Glatte Bézier-Silhouette statt eckigem Polygon.
 export function Robber({ hex }: { hex: Hex }) {
-  const w = hex.w * 0.34; // Referenzbreite
-  const h = hex.w * 0.52; // Gesamthöhe
+  const w = hex.w * 0.28; // Referenzbreite (kompakt, damit er zwischen Zahl & Eck-Gebäude passt)
+  const h = hex.w * 0.42; // Gesamthöhe
   const cx = hex.cx;
-  const topY = hex.cy - h * 0.62; // Scheitel des Kopfes
+  // Auf Feldern MIT Zahl nach oben rücken, damit die Zahl (unten mittig) frei bleibt —
+  // aber nur so weit, dass der Kopf ein Gebäude auf der oberen Ecke nicht berührt.
+  // Auf der Wüste (keine Zahl) mittig lassen.
+  const anchorY = hex.number != null ? hex.cy - hex.w * 0.14 : hex.cy;
+  const topY = anchorY - h * 0.62; // Scheitel des Kopfes
 
   const headR = w * 0.27;
   const headCy = topY + headR;

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import type { Board as BoardT, PlayerColor } from '@catan/shared';
-import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs } from './pieces';
+import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs, hexVerts } from './pieces';
 
 const PAD = 34;
 
@@ -84,21 +84,34 @@ export const Board = memo(function Board(props: BoardProps) {
       {board.hexes[robberHex] && <Robber hex={board.hexes[robberHex]} />}
 
       {/* Highlights + Klick-Ziele */}
-      {/* Räuber-Platzierung: dezenter halbtransparenter Kreis je gültigem Feld,
-          farblich geteilt nach den Spielern, die dort eine Siedlung/Stadt haben. */}
+      {/* Räuber-Platzierung: kleines, VOLLdeckendes Farb-Emblem rechts über der Zahl
+          (nicht faded, kein Puls → Farbe immer klar sichtbar). Farb-Torte nach den
+          Spielern, die dort eine Siedlung/Stadt haben. Klick auf das ganze Feld. */}
       {props.highlightHexes?.map((id) => {
         const hex = board.hexes[id];
         if (!hex) return null;
         const owners = [...new Set(hex.corners.map((cid) => buildings[cid]?.owner).filter((o): o is string => !!o))];
         const cols = owners.map((o) => colorOf(o).c);
-        const r = w * 0.28;
+        const bx = hex.cx + w * 0.19; // rechts
+        const by = hex.y + hex.h * 0.63 - w * 0.2; // über der Zahl (Zahl-Chip bei 0.63h)
+        const r = w * 0.11;
         return (
-          <g key={`hh${id}`} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onHex?.(id)}>
-            {/* leichter Grund, damit der Kreis auf jedem Feld erkennbar ist */}
-            <circle cx={hex.cx} cy={hex.cy} r={r} fill="rgba(8,12,18,0.20)" />
-            {cols.length === 1 && <circle cx={hex.cx} cy={hex.cy} r={r} fill={cols[0]} fillOpacity={0.5} />}
-            {cols.length > 1 && cols.map((col, i) => <path key={i} d={pieSlice(hex.cx, hex.cy, r, i, cols.length)} fill={col} fillOpacity={0.55} />)}
-            <circle cx={hex.cx} cy={hex.cy} r={r} fill="none" stroke="rgba(255,246,224,0.85)" strokeWidth={2.5} />
+          <g key={`hh${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onHex?.(id)}>
+            {/* unsichtbare Klickfläche über dem ganzen Feld */}
+            <polygon points={hexVerts(hex).map(([x, y]) => `${x},${y}`).join(' ')} fill="transparent" />
+            {/* Farb-Badge: langsam pulsierend (Scale), Farbe bleibt voll deckend */}
+            <g className="pulse-badge">
+              {cols.length <= 1 ? (
+                <circle cx={bx} cy={by} r={r} fill={cols[0] ?? 'rgba(28,32,40,0.7)'} stroke="#FFF6E0" strokeWidth={Math.max(1.5, w * 0.02)} />
+              ) : (
+                <>
+                  {cols.map((col, i) => (
+                    <path key={i} d={pieSlice(bx, by, r, i, cols.length)} fill={col} />
+                  ))}
+                  <circle cx={bx} cy={by} r={r} fill="none" stroke="#FFF6E0" strokeWidth={Math.max(1.5, w * 0.02)} />
+                </>
+              )}
+            </g>
           </g>
         );
       })}

@@ -370,6 +370,21 @@
     opacity: 1;
   }
 }
+/* Langsamer Größen-Puls (Farbe bleibt voll deckend) — für die Räuber-Farbkreise */
+.pulse-badge {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulseBadge 2.2s ease-in-out infinite;
+}
+@keyframes pulseBadge {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .pulse-strong,
   .pulse-node,
@@ -377,6 +392,9 @@
   .pulse-soft {
     animation: none;
     opacity: 0.95;
+  }
+  .pulse-badge {
+    animation: none;
   }
 }
 
