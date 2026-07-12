@@ -1,3 +1,4 @@
+export * from './version.js';
 export * from './design.js';
 export * from './maps.js';
 export * from './types.js';

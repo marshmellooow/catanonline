@@ -114,6 +114,95 @@
   right: 0;
   pointer-events: none;
 }
+.app-version-credit {
+  display: block;
+  text-align: center;
+  margin-top: 6px;
+  font-family: 'Marcellus', serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: color-mix(in srgb, var(--muted) 78%, var(--gold) 22%);
+}
+.home-info-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 5;
+}
+.lobby-version {
+  padding: 10px 16px 14px;
+  text-align: right;
+  font-family: 'Marcellus', serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
+/* Info- & Regeln-Dialog (Home + Lobby) */
+.info-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 14, 22, 0.6);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+  padding: 20px;
+  animation: fadeIn 0.15s ease;
+}
+.info-card {
+  width: 460px;
+  max-width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 24px;
+  animation: fadeIn 0.2s ease;
+}
+.info-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.info-title {
+  margin: 0;
+  font-size: 26px;
+  background: linear-gradient(180deg, #f4e6bd, var(--gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.info-version {
+  margin-top: 2px;
+  font-family: 'Marcellus', serif;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+.info-body {
+  margin-top: 18px;
+}
+.info-sec {
+  margin-top: 16px;
+}
+.info-sec h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.info-sec p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.info-foot {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 @media (prefers-reduced-motion: reduce) {
   .powered-by {
     animation: none;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../../store';
 import { islandCells, HexGradients, HexTile, uniqueCodes } from './hexart';
-import { chipColor, pipCount, type TerrainCode } from '@catan/shared';
+import { chipColor, pipCount, APP_VERSION_LABEL, type TerrainCode } from '@catan/shared';
 import './loading.css';
 
 const RAD = 24;
@@ -90,6 +90,7 @@ export function GameIntro() {
         </div>
 
         <div className="intro-sub">{host ? `${host} eröffnet die Partie` : 'Die Insel wird vorbereitet…'}</div>
+        <div className="intro-version">{APP_VERSION_LABEL}</div>
       </div>
     </div>
   );

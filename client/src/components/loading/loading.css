@@ -87,6 +87,21 @@
   margin-top: 18px;
   font-size: 13px;
 }
+.boot-version {
+  margin-top: 8px;
+  font-family: 'Marcellus', serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: color-mix(in srgb, var(--muted) 80%, var(--gold) 20%);
+}
+.intro-version {
+  margin-top: 14px;
+  font-family: 'Marcellus', serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: color-mix(in srgb, var(--muted) 80%, var(--gold) 20%);
+  opacity: 0.85;
+}
 
 @keyframes bootPop {
   0% {

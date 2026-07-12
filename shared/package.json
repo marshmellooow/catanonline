@@ -1,6 +1,6 @@
 {
   "name": "@catan/shared",
-  "version": "1.0.0",
+  "version": "3.1.0",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

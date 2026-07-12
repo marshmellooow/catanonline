@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { MAPS, PLAYER_COLORS, buildBoard, getMap, TURN_TIME_OPTIONS } from '@catan/shared';
+import { MAPS, PLAYER_COLORS, buildBoard, getMap, TURN_TIME_OPTIONS, APP_VERSION_LABEL } from '@catan/shared';
 import { Board } from '../components/board/Board';
 import { ChatPanel } from '../components/ChatPanel';
-import { Crown, Bot, Check, LogOut } from '../icons';
+import { InfoDialog } from '../components/InfoDialog';
+import { Crown, Bot, Check, LogOut, Info } from '../icons';
 
 const MAP_OPTIONS = [
   ...MAPS.map((m) => ({ id: m.id, title: m.title, desc: m.desc })),
@@ -13,6 +14,7 @@ const MAP_OPTIONS = [
 export function Lobby() {
   const { room, playerId, sendMsg, leaveRoom } = useStore();
   const [copied, setCopied] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const previewBoard = useMemo(() => (room ? buildBoard(room.mapId, 777) : null), [room?.mapId]);
 
@@ -41,7 +43,10 @@ export function Lobby() {
               <button className="btn btn-ghost btn-sm" onClick={copyLink}>{copied ? <><Check size={14} /> Kopiert</> : 'Link kopieren'}</button>
             </div>
           </div>
-          <button className="btn btn-red" onClick={leaveRoom}><LogOut size={15} /> Verlassen</button>
+          <div className="row gap-2">
+            <button className="btn btn-ghost" onClick={() => setShowInfo(true)} title="Info & Regeln"><Info size={15} /> Info</button>
+            <button className="btn btn-red" onClick={leaveRoom}><LogOut size={15} /> Verlassen</button>
+          </div>
         </div>
 
         {/* Karten-Vorschau + Auswahl */}
@@ -210,7 +215,10 @@ export function Lobby() {
         </div>
 
         <ChatPanel />
+        <div className="lobby-version muted">{APP_VERSION_LABEL}</div>
       </div>
+
+      {showInfo && <InfoDialog onClose={() => setShowInfo(false)} />}
     </div>
   );
 }

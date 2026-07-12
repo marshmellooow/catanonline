@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { randomName } from '@catan/shared';
+import { randomName, APP_VERSION_LABEL } from '@catan/shared';
 import { useStore } from '../store';
+import { InfoDialog } from '../components/InfoDialog';
+import { Info } from '../icons';
 
 export function Home() {
   const { name, setName, createRoom, joinRoom, status, notFound, clearNotFound } = useStore();
@@ -8,6 +10,7 @@ export function Home() {
   // Kein gespeicherter Name → mit einem zufälligen Vorschlag vorbelegen (editierbar).
   const [localName, setLocalName] = useState(() => name || randomName());
   const [code, setCode] = useState('');
+  const [showInfo, setShowInfo] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -30,6 +33,9 @@ export function Home() {
 
   return (
     <div className="home">
+      <button className="btn btn-ghost btn-sm home-info-btn" onClick={() => setShowInfo(true)} title="Info & Regeln">
+        <Info size={15} /> Info
+      </button>
       <div className="panel home-card">
         <div className="home-brand">
           <img className="home-logo" src="/catan-logo.png" alt="Catan Online Logo" width={84} height={84} />
@@ -84,7 +90,10 @@ export function Home() {
 
       <div className="home-credit">
         <span className="powered-by">Powered by <b>Marshl</b></span>
+        <span className="app-version-credit">{APP_VERSION_LABEL}</span>
       </div>
+
+      {showInfo && <InfoDialog onClose={() => setShowInfo(false)} />}
     </div>
   );
 }

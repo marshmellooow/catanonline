@@ -30,4 +30,5 @@ export {
   Maximize2, // Brett-Zoom zurücksetzen (Ansicht einpassen)
   Settings, // Einstellungen (UI-Größe)
   Timer, // Zug-Countdown
+  Info, // Info & Regeln
 } from 'lucide-react';

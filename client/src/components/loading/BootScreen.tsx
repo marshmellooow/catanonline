@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../store';
 import { flowerCells, HexGradients, HexTile, uniqueCodes } from './hexart';
-import type { TerrainCode } from '@catan/shared';
+import { APP_VERSION_LABEL, type TerrainCode } from '@catan/shared';
 import './loading.css';
 
 const RAD = 27;
@@ -60,6 +60,7 @@ export function BootScreen() {
           {status === 'online' ? 'Bereit' : status === 'offline' ? 'Verbindung wird aufgebaut…' : 'Verbinde mit dem Server…'}
         </div>
         <div className="powered-by boot-credit">Powered by <b>Marshl</b></div>
+        <div className="boot-version">{APP_VERSION_LABEL}</div>
       </div>
     </div>
   );
