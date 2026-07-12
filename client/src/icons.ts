@@ -28,4 +28,6 @@ export {
   Plus, // Stepper: mehr geben/bekommen
   Minus, // Stepper: weniger geben/bekommen
   Maximize2, // Brett-Zoom zurücksetzen (Ansicht einpassen)
+  Settings, // Einstellungen (UI-Größe)
+  Timer, // Zug-Countdown
 } from 'lucide-react';

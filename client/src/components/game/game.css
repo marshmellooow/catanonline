@@ -33,6 +33,39 @@
   box-shadow: 0 0 0 2px rgba(235, 194, 94, 0.12);
 }
 
+/* Zug-Countdown */
+.turn-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+.turn-timer svg {
+  opacity: 0.8;
+}
+.turn-timer.low {
+  color: #ff8a63;
+  border-color: #e86c4a;
+  background: rgba(232, 108, 74, 0.12);
+  animation: turnPulse 1s ease-in-out infinite;
+}
+@keyframes turnPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-timer.low {
+    animation: none;
+  }
+}
+
 /* ---------- Main / Board ---------- */
 .game-main {
   position: relative;
@@ -93,6 +126,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* UI-Größe (Einstellungen): schwebt über dem Brett → Transform stört das Layout nicht. */
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top right;
 }
 .rail-head {
   display: flex;
@@ -129,6 +165,9 @@
   flex-direction: column;
   gap: 10px;
   pointer-events: none;
+  /* UI-Größe (Einstellungen): Würfel + Verlauf skalieren, Ursprung unten-links. */
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: bottom left;
 }
 .dice {
   display: flex;
@@ -149,9 +188,30 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 12.5px;
+  font-size: 13px;
   color: var(--text-2);
-  max-width: 280px;
+  max-width: 300px;
+  /* Scrollbarer Verlauf: neueste unten, ältere durch Hochscrollen einsehbar. */
+  max-height: 176px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  pointer-events: auto; /* .bottom-left ist sonst klick-durchlässig */
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(235, 194, 94, 0.35) transparent;
+  /* obere Kante weich ausblenden, damit „mehr oben" spürbar ist */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
+}
+.event-log::-webkit-scrollbar {
+  width: 6px;
+}
+.event-log::-webkit-scrollbar-thumb {
+  background: rgba(235, 194, 94, 0.35);
+  border-radius: 3px;
+}
+.event-log::-webkit-scrollbar-track {
+  background: transparent;
 }
 .event-line {
   background: rgba(6, 20, 30, 0.55);
@@ -358,8 +418,9 @@
   gap: 10px;
   /* Stabile Höhe: die Aktionsleiste erscheint/verschwindet je Phase/Zug.
      Ohne Reservierung würde der Brett-Bereich (1fr) mitspringen. Reserviert Platz
-     für Hand (1 Reihe) + Gap + Aktionsleiste → Brett sitzt fest. */
-  min-height: 172px;
+     für Hand (1 Reihe) + Gap + Aktionsleiste → Brett sitzt fest.
+     Skaliert mit der UI-Größe, damit größere Handkarten nicht abgeschnitten werden. */
+  min-height: calc(172px * var(--ui-scale, 1));
   justify-content: flex-start;
 }
 .hand {
@@ -367,7 +428,7 @@
   align-items: center;
   gap: 18px;
   flex-wrap: nowrap; /* kein Umbruch → konstante Höhe, kein Springen */
-  min-height: 90px;
+  min-height: calc(90px * var(--ui-scale, 1));
 }
 .hand-res {
   display: flex;
@@ -408,6 +469,9 @@
   padding: 10px 12px;
   width: max-content;
   max-width: min(94vw, 340px);
+  /* UI-Größe (Einstellungen): schwebt über dem Brett → Transform stört das Layout nicht. */
+  transform: scale(var(--ui-scale, 1));
+  transform-origin: top left;
 }
 .bank-title {
   font-family: 'Marcellus', serif;
@@ -935,6 +999,88 @@
   }
 }
 
+/* „Du ziehst"-Popup: kurz über der eigenen Hand, zeigt groß die erhaltenen Karten (nur für dich) */
+.draw-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 306;
+  overflow: hidden;
+}
+.draw-pop {
+  position: absolute;
+  left: 50%;
+  bottom: calc(172px * var(--ui-scale, 1) + 16px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 20px 16px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(30, 40, 50, 0.96), rgba(18, 26, 34, 0.96));
+  border: 1.5px solid var(--gold);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  animation: drawPop 2.1s ease forwards;
+}
+.draw-title {
+  font-family: 'Marcellus', serif;
+  font-size: 15px;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+.draw-cards {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+.draw-card {
+  position: relative;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+.draw-count {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--dialog);
+  border: 1.5px solid var(--gold);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  padding: 0 6px;
+}
+@keyframes drawPop {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.8);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1.05);
+  }
+  18% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw-pop {
+    animation: none;
+  }
+}
+
 /* Banner „Längste Straße" (Vergabe / Diebstahl) */
 .lr-banner-wrap {
   position: fixed;
@@ -1104,15 +1250,12 @@
   }
   .event-log {
     max-width: 58vw;
+    max-height: 78px;
     font-size: 11px;
     gap: 2px;
   }
   .event-line {
     padding: 2px 7px;
-  }
-  /* nur die letzten 2 Log-Zeilen zeigen */
-  .event-line:nth-last-child(n + 3) {
-    display: none;
   }
 
   /* Spieler & Bank werden zu Bottom-Sheets (standardmäßig unten weggeschoben) */

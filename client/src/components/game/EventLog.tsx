@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { useStore } from '../../store';
 import type { GameEvent, PublicState, ResourceCounts, ResourceType } from '@catan/shared';
@@ -88,15 +88,38 @@ function fmt(ev: GameEvent, game: PublicState, me: string | null): { Icon: IconT
 export function EventLog() {
   const game = useStore((s) => s.game);
   const me = useStore((s) => s.playerId);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Nur ans Ende scrollen, wenn der Nutzer bereits (fast) unten war — sonst darf
+  // er ungestört im Verlauf nach oben scrollen.
+  const stickRef = useRef(true);
+
+  const lines = game
+    ? game.log
+        .map((ev) => fmt(ev, game, me))
+        .filter((x): x is { Icon: IconType; node: ReactNode } => x !== null)
+        .slice(-60)
+    : [];
+
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
+  }, [lines.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, []);
+
   if (!game) return null;
-  const lines = game.log
-    .map((ev) => fmt(ev, game, me))
-    .filter((x): x is { Icon: IconType; node: ReactNode } => x !== null)
-    .slice(-6);
   return (
-    <div className="event-log">
+    <div className="event-log" ref={scrollRef}>
       {lines.map(({ Icon, node }, i) => (
-        <div key={i} className="event-line" style={{ opacity: 0.5 + (i / lines.length) * 0.5 }}>
+        <div key={i} className="event-line">
           <Icon size={13} className="event-ico" />
           <span className="event-text">{node}</span>
         </div>

@@ -19,6 +19,9 @@ const DEV_DESC: Record<DevCardType, string> = {
 export function Hand({ onPlayDev }: { onPlayDev: (card: DevCardType) => void }) {
   const game = useStore((s) => s.game);
   const me = useStore((s) => s.playerId);
+  const uiScale = useStore((s) => s.uiScale);
+  const resSize = Math.round(64 * uiScale);
+  const devSize = Math.round(58 * uiScale);
   if (!game || !me) return null;
   const you = game.players.find((p) => p.id === me);
   if (!you || !you.resources) return null;
@@ -36,7 +39,7 @@ export function Hand({ onPlayDev }: { onPlayDev: (card: DevCardType) => void }) 
         {held.length === 0 && <div className="hand-empty muted">Keine Rohstoffe</div>}
         {held.map((r) => (
           <div key={r} className="res-slot" data-hand-res={r} title={resLabel(r)}>
-            <ResourceCard resource={r} size={64} />
+            <ResourceCard resource={r} size={resSize} />
             {res[r] > 1 && <div className="res-count num">{res[r]}</div>}
           </div>
         ))}
@@ -67,7 +70,7 @@ export function Hand({ onPlayDev }: { onPlayDev: (card: DevCardType) => void }) 
                 disabled={!playable}
                 onClick={playable ? () => onPlayDev(card) : undefined}
               >
-                <DevCard card={card} size={58} />
+                <DevCard card={card} size={devSize} />
                 {total > 1 && <span className="dev-count num">{total}</span>}
                 {pending > 0 && owned > 0 && <span className="dev-new">+{pending}</span>}
                 {owned === 0 && !isVp && <span className="dev-lock">neu</span>}

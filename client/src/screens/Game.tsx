@@ -16,10 +16,13 @@ import { FlyingCards } from '../components/game/FlyingCards';
 import { BuildPopups } from '../components/game/BuildPopups';
 import { LongestRoadBanner } from '../components/game/LongestRoadBanner';
 import { EventLog } from '../components/game/EventLog';
+import { DrawPopup } from '../components/game/DrawPopup';
+import { TurnTimer } from '../components/game/TurnTimer';
+import { SettingsDialog } from '../components/game/SettingsDialog';
 import { ChatPanel } from '../components/ChatPanel';
 import { makeColorOf, phaseLabel } from '../components/game/ui';
 import { validSettlementCorners, validRoadEdges, type GameState, type DevCardType } from '@catan/shared';
-import { MessageCircle, X, LogOut, Users, Landmark } from '../icons';
+import { MessageCircle, X, LogOut, Users, Landmark, Settings } from '../icons';
 import '../components/game/game.css';
 
 export function Game() {
@@ -27,10 +30,12 @@ export function Game() {
   const me = useStore((s) => s.playerId);
   const act = useStore((s) => s.act);
   const leaveRoom = useStore((s) => s.leaveRoom);
+  const uiScale = useStore((s) => s.uiScale);
   const [buildIntent, setBuildIntent] = useState<BuildIntent>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [devPrompt, setDevPrompt] = useState<'yearOfPlenty' | 'monopoly' | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   // Mobil: Spieler-/Bank-Panel als ausklappbares Bottom-Sheet (statt Dauer-Overlay).
   // Nur eins gleichzeitig offen; auf Desktop per CSS unwirksam (Chips ausgeblendet).
   const [mobileSheet, setMobileSheet] = useState<'players' | 'bank' | null>(null);
@@ -102,13 +107,15 @@ export function Game() {
   const waitingPause = !!activeDisconnected && (game.phase !== 'discard');
 
   return (
-    <div className="game" data-sheet={mobileSheet ?? undefined}>
+    <div className="game" data-sheet={mobileSheet ?? undefined} style={{ ['--ui-scale' as string]: uiScale }}>
       <div className="game-header">
         <div className="row gap-3">
           <span className={`phase-pill ${yourTurn ? 'mine' : ''}`}>{phaseLabel(game, me)}</span>
         </div>
         <div className="row gap-2">
+          <TurnTimer />
           <span className="muted turn-meta" style={{ fontSize: 13 }}>Zug {game.turnCount} · {activeName}</span>
+          <button className="btn btn-ghost btn-sm" title="Einstellungen" onClick={() => setShowSettings(true)}><Settings size={15} /></button>
           <button className="btn btn-ghost btn-sm" onClick={() => setShowChat((v) => !v)}><MessageCircle size={15} /> Chat</button>
           <button className="btn btn-red btn-sm" onClick={leaveRoom}><LogOut size={15} /> Verlassen</button>
         </div>
@@ -190,9 +197,11 @@ export function Game() {
       <DiscardDialog />
       {tradeOpen && <TradeDialog onClose={() => setTradeOpen(false)} />}
       {devPrompt && <DevPlayDialog mode={devPrompt} onClose={() => setDevPrompt(null)} />}
+      {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
       <WinnerOverlay />
       <FlyingCards />
       <BuildPopups />
+      <DrawPopup />
       <LongestRoadBanner />
     </div>
   );

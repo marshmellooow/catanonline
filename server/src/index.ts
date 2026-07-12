@@ -159,6 +159,7 @@ function handle(ws: WebSocket, conn: Conn, msg: ClientMsg) {
     case 'chooseMap': room.chooseMap(pid, msg.mapId); break;
     case 'setOption': room.setOption(pid, msg.vpTarget); break;
     case 'setBankSize': room.setBankSize(pid, msg.bankSize); break;
+    case 'setTurnTime': room.setTurnTime(pid, msg.turnSeconds); break;
     case 'kick': room.kick(pid, msg.playerId); break;
     case 'replaceWithBot': room.replaceWithBot(pid, msg.playerId); break;
     case 'addBot': room.addBot(pid); break;

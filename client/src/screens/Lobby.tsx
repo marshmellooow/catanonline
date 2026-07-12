@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store';
-import { MAPS, PLAYER_COLORS, buildBoard, getMap } from '@catan/shared';
+import { MAPS, PLAYER_COLORS, buildBoard, getMap, TURN_TIME_OPTIONS } from '@catan/shared';
 import { Board } from '../components/board/Board';
 import { ChatPanel } from '../components/ChatPanel';
 import { Crown, Bot, Check, LogOut } from '../icons';
@@ -104,6 +104,22 @@ export function Lobby() {
                   title="So viele Karten je Rohstoff hat die Bank. Ist die Bank leer, bekommt niemand diesen Rohstoff."
                 >
                   {v}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="field-label">Zug-Zeit</div>
+            <div className="row gap-2">
+              {TURN_TIME_OPTIONS.map((v) => (
+                <button
+                  key={v}
+                  className={`btn btn-sm ${room.turnSeconds === v ? 'btn-gold' : 'btn-ghost'}`}
+                  disabled={!isHost}
+                  onClick={() => sendMsg({ t: 'setTurnTime', turnSeconds: v })}
+                  title="Zeitlimit pro Zug. Läuft es ab, wird der Zug automatisch zu Ende gespielt."
+                >
+                  {v === 0 ? 'Aus' : `${v}s`}
                 </button>
               ))}
             </div>

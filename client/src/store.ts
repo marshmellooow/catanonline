@@ -4,6 +4,17 @@ import { initConnection, send, type ConnStatus } from './net/connection';
 
 const LS_SESSION = 'catan.sessionId';
 const LS_NAME = 'catan.name';
+const LS_UISCALE = 'catan.uiScale';
+
+export const UI_SCALE_MIN = 0.8;
+export const UI_SCALE_MAX = 1.35;
+export const UI_SCALE_DEFAULT = 1.1;
+
+function loadUiScale(): number {
+  const raw = Number(localStorage.getItem(LS_UISCALE));
+  if (!Number.isFinite(raw) || raw <= 0) return UI_SCALE_DEFAULT;
+  return Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, raw));
+}
 
 export interface ChatEntry {
   from: string;
@@ -11,6 +22,7 @@ export interface ChatEntry {
   colorIndex: number;
   text: string;
   ts: number;
+  dice?: [number, number]; // gesetzt = Würfel-Eintrag (statt Textnachricht)
 }
 export interface Toast {
   id: number;
@@ -27,6 +39,7 @@ interface StoreState {
   name: string;
   room: RoomState | null;
   game: PublicState | null;
+  turnDeadline: number | null; // lokaler Ablaufzeitpunkt (epoch ms) des Zug-Countdowns; null = aus/kein Limit
   chat: ChatEntry[];
   toasts: Toast[];
   lastEvents: GameEvent[];
@@ -35,6 +48,7 @@ interface StoreState {
   everOnline: boolean; // wurde schon mind. einmal verbunden → steuert Boot-Splash vs. Reconnect-Overlay
   booting: boolean; // initialer Ladebildschirm sichtbar
   gameStarting: boolean; // Spielstart-Intro (Insel baut sich auf) sichtbar
+  uiScale: number; // UI-Skalierung (Karten/Bank/Feed) — persistiert
 
   init: () => void;
   setName: (name: string) => void;
@@ -49,6 +63,7 @@ interface StoreState {
   clearNotFound: () => void;
   finishBoot: () => void;
   endGameStart: () => void;
+  setUiScale: (n: number) => void;
 }
 
 let toastId = 1;
@@ -62,6 +77,7 @@ export const useStore = create<StoreState>((set, get) => ({
   name: localStorage.getItem(LS_NAME) ?? '',
   room: null,
   game: null,
+  turnDeadline: null,
   chat: [],
   toasts: [],
   lastEvents: [],
@@ -70,6 +86,7 @@ export const useStore = create<StoreState>((set, get) => ({
   everOnline: false,
   booting: true,
   gameStarting: false,
+  uiScale: loadUiScale(),
 
   init: () => {
     initConnection({
@@ -108,6 +125,11 @@ export const useStore = create<StoreState>((set, get) => ({
   clearNotFound: () => set({ notFound: null }),
   finishBoot: () => set({ booting: false }),
   endGameStart: () => set({ gameStarting: false }),
+  setUiScale: (n) => {
+    const v = Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, Math.round(n * 100) / 100));
+    localStorage.setItem(LS_UISCALE, String(v));
+    set({ uiScale: v });
+  },
 }));
 
 function handleMessage(msg: ServerMsg, set: (p: Partial<StoreState>) => void, get: () => StoreState) {
@@ -138,7 +160,9 @@ function handleMessage(msg: ServerMsg, set: (p: Partial<StoreState>) => void, ge
     case 'gameState': {
       const prev = get().game;
       const wasLobby = get().screen === 'lobby';
-      set({ game: msg.state, screen: 'game', ...(wasLobby ? { gameStarting: true } : {}) });
+      const trm = msg.turnRemainingMs;
+      const turnDeadline = typeof trm === 'number' ? Date.now() + trm : null;
+      set({ game: msg.state, screen: 'game', turnDeadline, ...(wasLobby ? { gameStarting: true } : {}) });
       // „Du bist dran"-Toast
       if (
         msg.state.activePlayer === msg.state.you &&
@@ -182,6 +206,18 @@ function handleEvents(events: GameEvent[], get: () => StoreState) {
   for (const ev of events) {
     if (ev.t === 'roll') {
       useStore.setState((s) => ({ diceNonce: s.diceNonce + 1 }));
+      // Wurf als Chat-Eintrag (mit Würfel-Symbolen) protokollieren — für alle sichtbar.
+      const g = get().game;
+      const pl = g?.players.find((p) => p.id === ev.player);
+      const entry: ChatEntry = {
+        from: ev.player,
+        name: pl?.name ?? '',
+        colorIndex: pl?.colorIndex ?? -1,
+        text: '',
+        ts: Date.now(),
+        dice: ev.dice,
+      };
+      useStore.setState((s) => ({ chat: [...s.chat.slice(-80), entry] }));
     } else if (ev.t === 'steal' && ev.to === me && ev.stole) {
       get().pushToast('Du hast eine Karte gestohlen', 'good');
     } else if (ev.t === 'steal' && ev.from === me && ev.stole) {

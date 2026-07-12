@@ -312,6 +312,19 @@
 .chat-name {
   font-weight: 700;
 }
+/* Würfel-Wurf im Chat: zwei Würfel-Symbole + Augensumme */
+.chat-roll {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+.chat-roll-sum {
+  font-size: 14px;
+  color: var(--gold);
+  margin-left: 3px;
+  font-variant-numeric: tabular-nums;
+}
 .chat-input {
   display: flex;
   gap: 8px;

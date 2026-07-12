@@ -22,6 +22,7 @@ export interface RoomState {
   mapId: string;
   vpTarget: number;
   bankSize: number;
+  turnSeconds: number; // Zug-Countdown in Sekunden (0 = aus)
   players: LobbyPlayer[];
   spectators: { id: string; name: string }[];
   hostId: string;
@@ -42,6 +43,7 @@ export type ClientMsg =
   | { t: 'chooseMap'; mapId: string }
   | { t: 'setOption'; vpTarget: number }
   | { t: 'setBankSize'; bankSize: number }
+  | { t: 'setTurnTime'; turnSeconds: number }
   | { t: 'kick'; playerId: string }
   | { t: 'replaceWithBot'; playerId: string }
   | { t: 'addBot' }
@@ -57,7 +59,7 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: 'welcome'; sessionId: string; playerId: string; code: string }
   | { t: 'roomState'; room: RoomState; you: string }
-  | { t: 'gameState'; state: PublicState }
+  | { t: 'gameState'; state: PublicState; turnRemainingMs?: number }
   | { t: 'event'; events: GameEvent[] }
   | { t: 'chat'; from: string; name: string; colorIndex: number; text: string; ts: number }
   | { t: 'error'; message: string }
@@ -70,3 +72,6 @@ export type ServerMsg =
 export const GRACE_MS = 90_000; // Reconnect-Frist bei Verbindungsverlust
 export const EMPTY_ROOM_TTL_MS = 120_000; // leere Räume nach dieser Zeit löschen
 export const BOT_MOVE_DELAY_MS = 700; // Bot-Zug-Verzögerung (spürbar, nicht hektisch)
+export const AUTO_ROLL_MS = 3_000; // Roll-Phase: nach dieser Zeit automatisch für den Spieler würfeln
+export const DEFAULT_TURN_SECONDS = 60; // Zug-Countdown-Standard (0 = aus)
+export const TURN_TIME_OPTIONS = [0, 30, 60, 90, 120] as const; // wählbar in der Lobby

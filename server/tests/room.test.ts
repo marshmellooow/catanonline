@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Room } from '../src/room.js';
-import { GRACE_MS } from '@catan/shared';
+import { GRACE_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
 
 // Stub-Socket: readyState OPEN(1), send no-op — Broadcasts crashen nicht.
 const sock = () => ({ readyState: 1, send() {} }) as never;
@@ -16,6 +16,22 @@ function startedGame(n = 3) {
   expect(room.startGame(players[0].id)).toBeNull();
   expect(room.phase).toBe('playing');
   return { room, players };
+}
+
+/** Startaufstellung deterministisch abschließen (jeder Aktive setzt die erste gültige Siedlung/Straße). */
+function driveSetup(room: Room) {
+  for (let guard = 0; guard < 60; guard++) {
+    const g = room.game;
+    if (!g || (g.phase !== 'setupSettlement' && g.phase !== 'setupRoad')) return;
+    const active = g.order[g.activeIndex];
+    if (g.phase === 'setupSettlement') {
+      const c = validSettlementCorners(g, active, true);
+      room.handleAction(active, { type: 'placeSetupSettlement', corner: c[0] });
+    } else {
+      const e = validRoadEdges(g, active, g.setupLastSettlement);
+      room.handleAction(active, { type: 'placeSetupRoad', edge: e[0] });
+    }
+  }
 }
 
 describe('Room-Lifecycle: Leave / Reconnect / Host', () => {
@@ -153,6 +169,82 @@ describe('Room-Cleanup (checkEmpty)', () => {
       room.reattach(players[0].id, sock()); // vor 120s zurück
       vi.advanceTimersByTime(120_000);
       expect(emptied).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('Lobby-Option: Zug-Zeit (setTurnTime)', () => {
+  it('Standard 60s; nur Host, nur Lobby; Bereich [15..600], 0 = aus, NaN ignoriert', () => {
+    const { room, players } = lobby(2);
+    expect(room.turnSeconds).toBe(DEFAULT_TURN_SECONDS);
+    expect(room.toRoomState().turnSeconds).toBe(60);
+
+    room.setTurnTime(players[1].id, 30); // nicht Host → ignoriert
+    expect(room.turnSeconds).toBe(60);
+
+    room.setTurnTime(players[0].id, 30);
+    expect(room.turnSeconds).toBe(30);
+    room.setTurnTime(players[0].id, 0); // aus
+    expect(room.turnSeconds).toBe(0);
+    room.setTurnTime(players[0].id, 5); // <15 → auf 15 geklemmt
+    expect(room.turnSeconds).toBe(15);
+    room.setTurnTime(players[0].id, 9999); // >600 → 600
+    expect(room.turnSeconds).toBe(600);
+    room.setTurnTime(players[0].id, Number.NaN); // ungültig → unverändert
+    expect(room.turnSeconds).toBe(600);
+  });
+
+  it('nicht mehr änderbar, sobald das Spiel läuft', () => {
+    const { room, players } = startedGame(2);
+    room.setTurnTime(players[0].id, 30);
+    expect(room.turnSeconds).toBe(DEFAULT_TURN_SECONDS); // Änderung nur in der Lobby
+  });
+});
+
+describe('Auto-Würfeln (#2) & Zug-Countdown (#3)', () => {
+  it('würfelt in der Roll-Phase eines Menschen nach AUTO_ROLL_MS automatisch', () => {
+    vi.useFakeTimers();
+    try {
+      const { room } = startedGame(3);
+      driveSetup(room);
+      expect(room.game!.phase).toBe('roll');
+      expect(room.game!.hasRolled).toBe(false);
+      vi.advanceTimersByTime(AUTO_ROLL_MS + 50);
+      expect(room.game!.hasRolled).toBe(true);
+      expect(room.game!.dice).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('KEIN Auto-Würfeln in der Startaufstellung', () => {
+    vi.useFakeTimers();
+    try {
+      const { room } = startedGame(3);
+      expect(room.game!.phase).toBe('setupSettlement');
+      vi.advanceTimersByTime(AUTO_ROLL_MS + 50);
+      expect(room.game!.phase).toBe('setupSettlement'); // unverändert, kein Wurf
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Zug-Countdown beendet den Zug eines Menschen bei Ablauf automatisch', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players } = lobby(3);
+      players.forEach((p) => room.setReady(p.id, true));
+      room.setTurnTime(players[0].id, 20); // kurzer Zug fürs Test
+      room.startGame(players[0].id);
+      driveSetup(room);
+      expect(room.game!.phase).toBe('roll');
+      const firstActive = room.game!.activeIndex;
+      // Über die Frist hinaus vorspulen: Auto-Würfeln (3s) + Zug-Timer (20s) + Auto-Pilot (0ms-Kette)
+      vi.advanceTimersByTime(20_000 + 1000);
+      expect(room.game!.activeIndex).not.toBe(firstActive); // Zug ist weitergegangen
+      expect(room.game!.turnCount).toBeGreaterThan(1);
     } finally {
       vi.useRealTimers();
     }

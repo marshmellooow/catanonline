@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import {
   createGame, applyAction, toPublicState, redactEventsFor, chooseBotAction, getMap,
-  GRACE_MS, BOT_MOVE_DELAY_MS,
+  GRACE_MS, BOT_MOVE_DELAY_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS,
   type GameState, type GameAction, type GameEvent,
   type ServerMsg, type RoomState, type LobbyPlayer,
 } from '@catan/shared';
@@ -33,6 +33,7 @@ export class Room {
   mapId = 'classic';
   vpTarget = 10;
   bankSize = 19;
+  turnSeconds = DEFAULT_TURN_SECONDS;
   hostId = '';
   players: RoomPlayer[] = [];
   spectators: { id: string; name: string; socket: WebSocket | null }[] = [];
@@ -40,6 +41,12 @@ export class Room {
 
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   private emptyTimer: ReturnType<typeof setTimeout> | null = null;
+  // Auto-Würfeln (Roll-Phase eines verbundenen Menschen): würfelt nach AUTO_ROLL_MS selbst.
+  private rollTimer: ReturnType<typeof setTimeout> | null = null;
+  // Zug-Countdown: pro Zug eines verbundenen Menschen; bei Ablauf beendet die Bot-Logik den Zug.
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
+  private turnTimerPlayerId: string | null = null; // Zug-Eigner, für den die Frist läuft
+  private turnDeadline = 0; // epoch ms, Ablaufzeitpunkt des aktuellen Zugs
   private botSeq = 0; // monoton, damit Bot-Namen nie kollidieren
   private hooks: RoomHooks;
 
@@ -128,7 +135,7 @@ export class Room {
       p.auto = true;
       p.socket = null;
       this.migrateHostIfNeeded();
-      this.scheduleBotTick();
+      this.scheduleTimers();
     }
     this.checkEmpty();
     this.broadcastRoom();
@@ -155,7 +162,7 @@ export class Room {
     if (spec) {
       spec.socket = socket;
       this.sendRoomTo(spec.socket, playerId);
-      if (this.game) this.send(spec.socket, { t: 'gameState', state: toPublicState(this.game, playerId) });
+      if (this.game) this.send(spec.socket, { t: 'gameState', state: toPublicState(this.game, playerId), turnRemainingMs: this.turnRemainingMs() });
       return true;
     }
     return false;
@@ -182,7 +189,7 @@ export class Room {
         p.auto = true;
         p.disconnectTimer = null;
         this.broadcastRoom();
-        this.scheduleBotTick();
+        this.scheduleTimers();
         this.checkEmpty();
       }, GRACE_MS);
       this.broadcastRoom();
@@ -220,6 +227,8 @@ export class Room {
   }
   private destroy() {
     if (this.botTimer) clearTimeout(this.botTimer);
+    this.clearRollTimer();
+    this.clearTurnTimer();
     for (const p of this.players) if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
     this.hooks.onEmpty(this.code);
   }
@@ -277,6 +286,14 @@ export class Room {
     this.bankSize = Math.max(3, Math.min(50, n));
     this.broadcastRoom();
   }
+  setTurnTime(playerId: string, turnSeconds: number) {
+    if (playerId !== this.hostId || this.phase !== 'lobby') return;
+    const n = Math.floor(Number(turnSeconds));
+    if (!Number.isFinite(n)) return; // fehlerhafte/manipulierte Eingabe ignorieren
+    // 0 = aus; sonst auf einen sinnvollen Bereich begrenzen.
+    this.turnSeconds = n <= 0 ? 0 : Math.max(15, Math.min(600, n));
+    this.broadcastRoom();
+  }
   kick(hostId: string, targetId: string) {
     if (hostId !== this.hostId) return;
     const target = this.findPlayer(targetId);
@@ -289,7 +306,7 @@ export class Room {
       target.connected = false;
       target.auto = true;
       target.socket = null;
-      this.scheduleBotTick();
+      this.scheduleTimers();
     }
     this.broadcastRoom();
     this.broadcastGame();
@@ -336,7 +353,7 @@ export class Room {
     }
     target.auto = true;
     this.broadcastRoom();
-    this.scheduleBotTick();
+    this.scheduleTimers();
   }
 
   // ---------- Spielstart ----------
@@ -358,9 +375,9 @@ export class Room {
         .map((p) => ({ id: p.id, name: p.name, colorIndex: p.colorIndex, isBot: p.isBot })),
     });
     this.phase = 'playing';
+    this.scheduleTimers();
     this.broadcastRoom();
     this.broadcastGame();
-    this.scheduleBotTick();
     return null;
   }
 
@@ -369,6 +386,9 @@ export class Room {
     if (this.phase !== 'finished') return; // nur nach Spielende
     if (!this.findPlayer(playerId)) return; // Zuschauer nicht
     if (this.botTimer) { clearTimeout(this.botTimer); this.botTimer = null; }
+    this.clearRollTimer();
+    this.clearTurnTimer();
+    this.turnTimerPlayerId = null;
     this.game = null;
     this.phase = 'lobby';
     for (const p of this.players) if (!p.isBot) p.ready = false;
@@ -394,10 +414,12 @@ export class Room {
   private afterGameMutation(events: GameEvent[]) {
     if (!this.game) return;
     if (this.game.winner) this.phase = 'finished';
+    // Timer VOR dem Broadcast planen, damit turnRemainingMs zum neuen Zug sofort stimmt
+    // (sonst erscheint die Countdown-Pille erst nach der ersten Aktion des Zugs).
+    this.scheduleTimers();
     this.broadcastGame();
     if (events.length) this.broadcastEvents(events);
     this.broadcastRoom();
-    this.scheduleBotTick();
   }
 
   // ---------- Bot-Steuerung ----------
@@ -435,6 +457,100 @@ export class Room {
       this.botTick();
     }, BOT_MOVE_DELAY_MS);
   }
+
+  /** Sammelaufruf nach jeder Zustandsänderung: Bots, Auto-Würfeln und Zug-Countdown planen. */
+  private scheduleTimers() {
+    this.scheduleBotTick();
+    this.scheduleRollTimer();
+    this.armTurnTimer();
+  }
+
+  /** Aktiver Zug-Spieler (falls vorhanden). */
+  private activeRoomPlayer(): RoomPlayer | null {
+    const g = this.game;
+    if (!g || g.winner) return null;
+    return this.players.find((p) => p.id === g.order[g.activeIndex]) ?? null;
+  }
+
+  // ---------- Auto-Würfeln (#2) ----------
+  private clearRollTimer() {
+    if (this.rollTimer) { clearTimeout(this.rollTimer); this.rollTimer = null; }
+  }
+  /** In der Roll-Phase eines verbundenen Menschen nach AUTO_ROLL_MS automatisch würfeln. */
+  private scheduleRollTimer() {
+    this.clearRollTimer();
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing') return;
+    if (g.phase !== 'roll') return;
+    const active = this.activeRoomPlayer();
+    if (!active || this.isAuto(active)) return; // Bots/übernommene Sitze macht botTick
+    this.rollTimer = setTimeout(() => {
+      this.rollTimer = null;
+      this.autoRoll(active.id);
+    }, AUTO_ROLL_MS);
+  }
+  private autoRoll(playerId: string) {
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing') return;
+    if (g.phase !== 'roll' || g.order[g.activeIndex] !== playerId) return;
+    const p = this.findPlayer(playerId);
+    if (!p || this.isAuto(p)) return; // inzwischen Bot/getrennt → nicht doppelt würfeln
+    const result = applyAction(g, playerId, { type: 'rollDice' });
+    if ('events' in result) this.afterGameMutation(result.events);
+  }
+
+  // ---------- Zug-Countdown (#3) ----------
+  private clearTurnTimer() {
+    if (this.turnTimer) { clearTimeout(this.turnTimer); this.turnTimer = null; }
+  }
+  /** Aktuelle Restzeit des Zugs in ms (für die Client-Anzeige), sonst undefined. */
+  private turnRemainingMs(): number | undefined {
+    if (this.turnSeconds <= 0 || this.phase !== 'playing' || !this.turnDeadline) return undefined;
+    const active = this.activeRoomPlayer();
+    if (!active || this.isAuto(active) || active.id !== this.turnTimerPlayerId) return undefined;
+    return Math.max(0, this.turnDeadline - Date.now());
+  }
+  /** Startet/erneuert die Zug-Frist. Neue Frist nur bei Zug-Eignerwechsel; sonst gleiche Deadline. */
+  private armTurnTimer() {
+    this.clearTurnTimer();
+    if (this.turnSeconds <= 0) { this.turnTimerPlayerId = null; return; }
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing') { this.turnTimerPlayerId = null; return; }
+    const active = this.activeRoomPlayer();
+    if (!active || this.isAuto(active)) { this.turnTimerPlayerId = null; return; } // Bots ticken selbst
+    // Kein Zug-Countdown während der Startaufstellung — Setup ist kein „Zug" im engeren Sinn;
+    // so bekommt der erste echte Zug die volle Zeit und die Aufstellung wird nicht gehetzt.
+    if (g.phase === 'setupSettlement' || g.phase === 'setupRoad') { this.turnTimerPlayerId = null; return; }
+    if (this.turnTimerPlayerId !== active.id) {
+      this.turnTimerPlayerId = active.id;
+      this.turnDeadline = Date.now() + this.turnSeconds * 1000;
+    }
+    const remaining = Math.max(0, this.turnDeadline - Date.now());
+    this.turnTimer = setTimeout(() => this.enforceTurn(active.id), remaining);
+  }
+  /** Frist abgelaufen → Zug per Bot-Logik zu Ende spielen (würfeln, Räuber, … , Zug beenden). */
+  private enforceTurn(playerId: string) {
+    this.turnTimer = null;
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing') return;
+    if (g.order[g.activeIndex] !== playerId) { this.turnTimerPlayerId = null; this.armTurnTimer(); return; }
+    const p = this.findPlayer(playerId);
+    if (!p || this.isAuto(p)) { this.turnTimerPlayerId = null; return; } // wurde Bot → botTick übernimmt
+
+    const action = chooseBotAction(g, playerId);
+    if (action) {
+      const result = applyAction(g, playerId, action);
+      if ('events' in result) {
+        // afterGameMutation broadcastet UND plant Timer neu: bleibt es (überzogen) mein Zug,
+        // setzt armTurnTimer sofort das nächste enforceTurn (remaining=0) → Zug wird zu Ende gespielt;
+        // geht der Zug weiter, plant scheduleBotTick den nächsten (Bot-)Akteur.
+        this.afterGameMutation(result.events);
+        return;
+      }
+    }
+    // Keine (gültige) Aktion für mich → wartet auf andere (z. B. deren Abwerfen) → gleich erneut prüfen.
+    this.turnTimer = setTimeout(() => this.enforceTurn(playerId), 500);
+  }
   private botTick() {
     const g = this.game;
     if (!g || g.winner) return;
@@ -445,12 +561,15 @@ export class Room {
       const result = applyAction(g, actor.id, action);
       if ('events' in result) {
         if (g.winner) this.phase = 'finished';
+        // Timer VOR dem Broadcast planen → turnRemainingMs zum neuen Zug sofort korrekt.
+        this.scheduleTimers();
         this.broadcastGame();
         if (result.events.length) this.broadcastEvents(result.events);
         this.broadcastRoom();
+        return;
       }
     }
-    this.scheduleBotTick();
+    this.scheduleTimers();
   }
 
   // ---------- Chat & Ping ----------
@@ -484,6 +603,7 @@ export class Room {
     for (const p of this.players) ping[p.id] = p.ping;
     return {
       code: this.code, phase: this.phase, mapId: this.mapId, vpTarget: this.vpTarget, bankSize: this.bankSize,
+      turnSeconds: this.turnSeconds,
       players, spectators: this.spectators.map((s) => ({ id: s.id, name: s.name })),
       hostId: this.hostId, minPlayers: this.minPlayers, maxPlayers: this.maxPlayers, ping,
     };
@@ -492,7 +612,7 @@ export class Room {
     this.send(socket, { t: 'roomState', room: this.toRoomState(), you });
   }
   private sendGameTo(p: RoomPlayer) {
-    if (this.game) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id) });
+    if (this.game) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: this.turnRemainingMs() });
   }
   broadcastRoom() {
     const room = this.toRoomState();
@@ -501,8 +621,9 @@ export class Room {
   }
   broadcastGame() {
     if (!this.game) return;
-    for (const p of this.players) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id) });
-    for (const s of this.spectators) this.send(s.socket, { t: 'gameState', state: toPublicState(this.game, s.id) });
+    const trm = this.turnRemainingMs();
+    for (const p of this.players) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: trm });
+    for (const s of this.spectators) this.send(s.socket, { t: 'gameState', state: toPublicState(this.game, s.id), turnRemainingMs: trm });
   }
   broadcastEvents(events: GameEvent[]) {
     // Empfängerspezifisch redigieren: der beim Diebstahl konkret gestohlene Rohstoff
