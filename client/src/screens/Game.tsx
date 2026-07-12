@@ -18,6 +18,7 @@ import { LongestRoadBanner } from '../components/game/LongestRoadBanner';
 import { EventLog } from '../components/game/EventLog';
 import { DrawPopup } from '../components/game/DrawPopup';
 import { TurnTimer } from '../components/game/TurnTimer';
+import { TurnTimerFx } from '../components/game/TurnTimerFx';
 import { SettingsDialog } from '../components/game/SettingsDialog';
 import { ChatPanel } from '../components/ChatPanel';
 import { makeColorOf, phaseLabel } from '../components/game/ui';
@@ -203,6 +204,7 @@ export function Game() {
       <BuildPopups />
       <DrawPopup />
       <LongestRoadBanner />
+      <TurnTimerFx />
     </div>
   );
 }

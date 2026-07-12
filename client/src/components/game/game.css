@@ -66,6 +66,110 @@
   }
 }
 
+/* ── Zug-Countdown-Vollbildeffekte (TurnTimerFx) ─────────────────────────── */
+
+/* Roter Bildschirm-Puls im roten Modus (≤10 s) — leichtes Vignetten-Pulsen,
+   gleiches 1-s-Tempo wie die Timer-Pille. pointer-events:none → blockiert nichts. */
+.turn-red-pulse {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+  background: radial-gradient(ellipse 130% 120% at 50% 50%, transparent 52%, rgba(216, 48, 40, 0.6) 100%);
+  animation: screenRedPulse 1s ease-in-out infinite;
+  will-change: opacity;
+}
+@keyframes screenRedPulse {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.7; }
+}
+
+/* Großer Intro-Timer: blitzt mittig groß auf und schrumpft in die obere Ecke. */
+.turn-big-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 480;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.turn-big {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 40px;
+  border-radius: 22px;
+  color: var(--gold);
+  background: rgba(12, 26, 36, 0.86);
+  border: 1px solid rgba(235, 194, 94, 0.5);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  transform-origin: center center;
+  animation: turnBigIn 2.6s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.turn-big svg {
+  opacity: 0.9;
+}
+.turn-big-num {
+  font-family: 'Marcellus', serif;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes turnBigIn {
+  0% { opacity: 0; transform: scale(0.4); }
+  7% { opacity: 1; transform: scale(1.06); }
+  12% { transform: scale(1); }
+  72% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(14vw, -42vh) scale(0.14); }
+}
+@media (max-width: 720px) {
+  .turn-big {
+    padding: 16px 26px;
+  }
+  .turn-big-num {
+    font-size: 44px;
+  }
+  /* Kleiner Screen → Ecke ist näher; Schrumpfziel etwas anders. */
+  @keyframes turnBigIn {
+    0% { opacity: 0; transform: scale(0.4); }
+    7% { opacity: 1; transform: scale(1.06); }
+    12% { transform: scale(1); }
+    72% { opacity: 1; transform: translate(0, 0) scale(1); }
+    100% { opacity: 0; transform: translate(0, -40vh) scale(0.14); }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-red-pulse {
+    animation: none;
+    opacity: 0.32;
+  }
+  .turn-big {
+    animation: turnBigInReduced 2.2s ease forwards;
+  }
+  @keyframes turnBigInReduced {
+    0%, 12% { opacity: 0; }
+    24%, 78% { opacity: 1; transform: none; }
+    100% { opacity: 0; transform: none; }
+  }
+}
+
+/* Countdown-Hinweis im Abwurf-Dialog (bis zum automatischen Zufalls-Abwurf) */
+.discard-timer {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.discard-timer .num {
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+.discard-timer.low .num {
+  color: #ff8a63;
+}
+
 /* ---------- Main / Board ---------- */
 .game-main {
   position: relative;
