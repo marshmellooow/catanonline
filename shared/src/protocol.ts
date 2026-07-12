@@ -59,7 +59,7 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: 'welcome'; sessionId: string; playerId: string; code: string }
   | { t: 'roomState'; room: RoomState; you: string }
-  | { t: 'gameState'; state: PublicState; turnRemainingMs?: number }
+  | { t: 'gameState'; state: PublicState; turnRemainingMs?: number; discardRemainingMs?: number }
   | { t: 'event'; events: GameEvent[] }
   | { t: 'chat'; from: string; name: string; colorIndex: number; text: string; ts: number }
   | { t: 'error'; message: string }

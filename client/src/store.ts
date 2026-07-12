@@ -40,6 +40,7 @@ interface StoreState {
   room: RoomState | null;
   game: PublicState | null;
   turnDeadline: number | null; // lokaler Ablaufzeitpunkt (epoch ms) des Zug-Countdowns; null = aus/kein Limit
+  discardDeadline: number | null; // lokaler Ablaufzeitpunkt (epoch ms) des Abwurf-Countdowns; null = aus/keiner
   chat: ChatEntry[];
   toasts: Toast[];
   lastEvents: GameEvent[];
@@ -78,6 +79,7 @@ export const useStore = create<StoreState>((set, get) => ({
   room: null,
   game: null,
   turnDeadline: null,
+  discardDeadline: null,
   chat: [],
   toasts: [],
   lastEvents: [],
@@ -162,7 +164,9 @@ function handleMessage(msg: ServerMsg, set: (p: Partial<StoreState>) => void, ge
       const wasLobby = get().screen === 'lobby';
       const trm = msg.turnRemainingMs;
       const turnDeadline = typeof trm === 'number' ? Date.now() + trm : null;
-      set({ game: msg.state, screen: 'game', turnDeadline, ...(wasLobby ? { gameStarting: true } : {}) });
+      const drm = msg.discardRemainingMs;
+      const discardDeadline = typeof drm === 'number' ? Date.now() + drm : null;
+      set({ game: msg.state, screen: 'game', turnDeadline, discardDeadline, ...(wasLobby ? { gameStarting: true } : {}) });
       // „Du bist dran"-Toast
       if (
         msg.state.activePlayer === msg.state.you &&

@@ -47,6 +47,10 @@ export class Room {
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private turnTimerPlayerId: string | null = null; // Zug-Eigner, für den die Frist läuft
   private turnDeadline = 0; // epoch ms, Ablaufzeitpunkt des aktuellen Zugs
+  // Abwurf-Countdown (nach einer 7): läuft für ALLE, die abwerfen müssen; bei Ablauf (halbe
+  // Zug-Zeit) wird für säumige Menschen Karte für Karte zufällig abgeworfen.
+  private discardTimer: ReturnType<typeof setTimeout> | null = null;
+  private discardDeadline = 0; // epoch ms, gemeinsamer Ablaufzeitpunkt der Abwurf-Episode
   private botSeq = 0; // monoton, damit Bot-Namen nie kollidieren
   private hooks: RoomHooks;
 
@@ -154,6 +158,10 @@ export class Room {
       p.connected = true;
       p.auto = false; // Mensch übernimmt wieder
       this.cancelEmptyTimer();
+      // Timer neu planen, BEVOR der Spielstand rausgeht: ein wieder verbundener Mensch, der
+      // noch abwerfen muss, bekommt so seinen Abwurf-Countdown zurück (sonst Stall) und die
+      // Restzeit stimmt in sendGameTo. Deckt analog Zug-/Auto-Würfel-Timer ab.
+      this.scheduleTimers();
       this.broadcastRoom();
       this.sendGameTo(p);
       return true;
@@ -162,7 +170,7 @@ export class Room {
     if (spec) {
       spec.socket = socket;
       this.sendRoomTo(spec.socket, playerId);
-      if (this.game) this.send(spec.socket, { t: 'gameState', state: toPublicState(this.game, playerId), turnRemainingMs: this.turnRemainingMs() });
+      if (this.game) this.send(spec.socket, { t: 'gameState', state: toPublicState(this.game, playerId), turnRemainingMs: this.turnRemainingMs(), discardRemainingMs: this.discardRemainingMs() });
       return true;
     }
     return false;
@@ -229,6 +237,7 @@ export class Room {
     if (this.botTimer) clearTimeout(this.botTimer);
     this.clearRollTimer();
     this.clearTurnTimer();
+    this.clearDiscardTimer();
     for (const p of this.players) if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
     this.hooks.onEmpty(this.code);
   }
@@ -388,6 +397,7 @@ export class Room {
     if (this.botTimer) { clearTimeout(this.botTimer); this.botTimer = null; }
     this.clearRollTimer();
     this.clearTurnTimer();
+    this.clearDiscardTimer();
     this.turnTimerPlayerId = null;
     this.game = null;
     this.phase = 'lobby';
@@ -458,11 +468,12 @@ export class Room {
     }, BOT_MOVE_DELAY_MS);
   }
 
-  /** Sammelaufruf nach jeder Zustandsänderung: Bots, Auto-Würfeln und Zug-Countdown planen. */
+  /** Sammelaufruf nach jeder Zustandsänderung: Bots, Auto-Würfeln, Zug- und Abwurf-Countdown planen. */
   private scheduleTimers() {
     this.scheduleBotTick();
     this.scheduleRollTimer();
     this.armTurnTimer();
+    this.armDiscardTimer();
   }
 
   /** Aktiver Zug-Spieler (falls vorhanden). */
@@ -551,6 +562,47 @@ export class Room {
     // Keine (gültige) Aktion für mich → wartet auf andere (z. B. deren Abwerfen) → gleich erneut prüfen.
     this.turnTimer = setTimeout(() => this.enforceTurn(playerId), 500);
   }
+
+  // ---------- Abwurf-Countdown (Auto-Abwerfen nach einer 7) ----------
+  private clearDiscardTimer() {
+    if (this.discardTimer) { clearTimeout(this.discardTimer); this.discardTimer = null; }
+    this.discardDeadline = 0;
+  }
+  /** Verbundene Menschen, die noch abwerfen müssen (Bots/getrennte macht der Bot-Tick sofort). */
+  private pendingDiscardHumans(): RoomPlayer[] {
+    const g = this.game;
+    if (!g) return [];
+    return this.players.filter((p) => g.mustDiscard[p.id] !== undefined && p.connected && !p.isBot && !p.auto);
+  }
+  /** Restzeit des Abwurf-Countdowns in ms (für die Client-Anzeige), sonst undefined. */
+  private discardRemainingMs(): number | undefined {
+    if (this.turnSeconds <= 0 || this.phase !== 'playing' || !this.game || this.game.phase !== 'discard' || !this.discardDeadline) return undefined;
+    return Math.max(0, this.discardDeadline - Date.now());
+  }
+  /** Frist = halbe Zug-Zeit; einmal je Abwurf-Episode gesetzt. Nur wenn ein Mensch noch abwerfen muss. */
+  private armDiscardTimer() {
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing' || g.phase !== 'discard' || this.turnSeconds <= 0) { this.clearDiscardTimer(); return; }
+    if (this.pendingDiscardHumans().length === 0) { this.clearDiscardTimer(); return; }
+    if (this.discardTimer) clearTimeout(this.discardTimer);
+    if (!this.discardDeadline) this.discardDeadline = Date.now() + (this.turnSeconds * 1000) / 2;
+    const remaining = Math.max(0, this.discardDeadline - Date.now());
+    this.discardTimer = setTimeout(() => this.enforceDiscard(), remaining);
+  }
+  /** Frist abgelaufen → für jeden säumigen Menschen Karte für Karte zufällig abwerfen. */
+  private enforceDiscard() {
+    this.discardTimer = null;
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing' || g.phase !== 'discard') { this.clearDiscardTimer(); return; }
+    const events: GameEvent[] = [];
+    for (const p of this.pendingDiscardHumans()) {
+      const result = applyAction(g, p.id, { type: 'autoDiscard' });
+      if ('events' in result) events.push(...result.events);
+    }
+    this.discardDeadline = 0;
+    if (events.length) this.afterGameMutation(events); // broadcastet + plant Timer/Bots neu
+    else this.clearDiscardTimer();
+  }
   private botTick() {
     const g = this.game;
     if (!g || g.winner) return;
@@ -612,7 +664,7 @@ export class Room {
     this.send(socket, { t: 'roomState', room: this.toRoomState(), you });
   }
   private sendGameTo(p: RoomPlayer) {
-    if (this.game) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: this.turnRemainingMs() });
+    if (this.game) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: this.turnRemainingMs(), discardRemainingMs: this.discardRemainingMs() });
   }
   broadcastRoom() {
     const room = this.toRoomState();
@@ -622,8 +674,9 @@ export class Room {
   broadcastGame() {
     if (!this.game) return;
     const trm = this.turnRemainingMs();
-    for (const p of this.players) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: trm });
-    for (const s of this.spectators) this.send(s.socket, { t: 'gameState', state: toPublicState(this.game, s.id), turnRemainingMs: trm });
+    const drm = this.discardRemainingMs();
+    for (const p of this.players) this.send(p.socket, { t: 'gameState', state: toPublicState(this.game, p.id), turnRemainingMs: trm, discardRemainingMs: drm });
+    for (const s of this.spectators) this.send(s.socket, { t: 'gameState', state: toPublicState(this.game, s.id), turnRemainingMs: trm, discardRemainingMs: drm });
   }
   broadcastEvents(events: GameEvent[]) {
     // Empfängerspezifisch redigieren: der beim Diebstahl konkret gestohlene Rohstoff

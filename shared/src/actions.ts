@@ -17,6 +17,7 @@ export type GameAction =
   | { type: 'moveRobber'; hex: number }
   | { type: 'steal'; victim: string }
   | { type: 'discard'; resources: Partial<ResourceCounts> }
+  | { type: 'autoDiscard' } // Zeit abgelaufen: benötigte Anzahl Karten einzeln zufällig abwerfen
   | { type: 'bankTrade'; give: ResourceType; get: ResourceType }
   | { type: 'proposeTrade'; give: Partial<ResourceCounts>; get: Partial<ResourceCounts> }
   | { type: 'respondTrade'; offerId: string; accept: boolean }

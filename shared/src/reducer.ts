@@ -170,6 +170,31 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       return { events: out };
     }
 
+    // ---------------- Auto-Abwerfen (Zeit abgelaufen) ----------------
+    // Wirft die geforderte Anzahl ab, aber KARTE FÜR KARTE zufällig aus der Hand
+    // (flacher Pool, ohne Zurücklegen) — also ein zufälliger Mix statt „alles von einer Sorte".
+    case 'autoDiscard': {
+      if (state.phase !== 'discard') return fail('Kein Abwerfen nötig.');
+      const need = state.mustDiscard[playerId];
+      if (need === undefined) return fail('Du musst nichts abwerfen.');
+      const p = getPlayer(state, playerId)!;
+      const pool: ResourceType[] = [];
+      for (const r of RESOURCES) for (let i = 0; i < p.resources[r]; i++) pool.push(r);
+      const rng = createRng(state.rngState);
+      const take = Math.min(need, pool.length);
+      for (let k = 0; k < take; k++) {
+        const idx = nextInt(rng, pool.length);
+        const r = pool.splice(idx, 1)[0];
+        p.resources[r]--;
+        state.bank[r]++;
+      }
+      state.rngState = rng.s;
+      delete state.mustDiscard[playerId];
+      log(state, { t: 'discard', player: playerId, count: take }, out);
+      if (Object.keys(state.mustDiscard).length === 0) state.phase = 'moveRobber';
+      return { events: out };
+    }
+
     // ---------------- Räuber versetzen ----------------
     case 'moveRobber': {
       if (state.phase !== 'moveRobber') return fail('Räuber kann jetzt nicht versetzt werden.');

@@ -250,3 +250,67 @@ describe('Auto-Würfeln (#2) & Zug-Countdown (#3)', () => {
     }
   });
 });
+
+describe('Abwurf-Countdown (Auto-Abwerfen nach einer 7)', () => {
+  // Injiziert ein Abwurf-Szenario in ein reales Spiel und bewaffnet die Timer.
+  function discardSetup(turnSeconds: number, need: number) {
+    const { room, players } = lobby(3);
+    players.forEach((p) => room.setReady(p.id, true));
+    room.setTurnTime(players[0].id, turnSeconds);
+    room.startGame(players[0].id);
+    driveSetup(room);
+    const g = room.game!;
+    const pid = players[1].id; // ein NICHT-aktiver, verbundener Mensch muss abwerfen
+    const p = g.players.find((pl) => pl.id === pid)!;
+    p.resources = { wood: 3, brick: 3, wool: 2, grain: 0, ore: 0 };
+    g.phase = 'discard';
+    g.mustDiscard = { [pid]: need };
+    (room as unknown as { scheduleTimers(): void }).scheduleTimers();
+    return { room, g, pid, p };
+  }
+  const handTotal = (r: { wood: number; brick: number; wool: number; grain: number; ore: number }) =>
+    r.wood + r.brick + r.wool + r.grain + r.ore;
+
+  it('wirft für einen säumigen Menschen nach halber Zug-Zeit automatisch (zufällig) ab', () => {
+    vi.useFakeTimers();
+    try {
+      const { g, pid, p } = discardSetup(20, 4); // halbe Zeit = 10s
+      vi.advanceTimersByTime(10_000 + 200);
+      expect(g.mustDiscard[pid]).toBeUndefined(); // automatisch abgeworfen
+      expect(handTotal(p.resources)).toBe(4); // 8 → 4
+      expect(g.phase).toBe('moveRobber'); // Phase weitergegangen
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('kein Auto-Abwurf, wenn Zug-Zeit aus (0)', () => {
+    vi.useFakeTimers();
+    try {
+      const { g, pid, p } = discardSetup(0, 4);
+      vi.advanceTimersByTime(120_000);
+      expect(g.mustDiscard[pid]).toBe(4); // niemand hat automatisch abgeworfen
+      expect(handTotal(p.resources)).toBe(8);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Reconnect waehrend der Abwurf-Frist bewaffnet den Timer neu → kein Stall', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, g, pid, p } = discardSetup(20, 4); // Frist 10s
+      // Abwerfer trennt Verbindung; eine Zustandsaenderung waehrend er weg ist nullt die Frist
+      // (pendingDiscardHumans leer → clearDiscardTimer). Ohne Re-Arm bei reattach bliebe es dabei.
+      room.handleDisconnect(pid);
+      (room as unknown as { scheduleTimers(): void }).scheduleTimers();
+      // Danach kommt er zurueck — reattach MUSS die Frist neu bewaffnen, sonst Dauer-Stall in 'discard'.
+      room.reattach(pid, sock());
+      vi.advanceTimersByTime(10_000 + 500);
+      expect(g.mustDiscard[pid]).toBeUndefined(); // automatisch abgeworfen statt Dauer-Stall
+      expect(handTotal(p.resources)).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

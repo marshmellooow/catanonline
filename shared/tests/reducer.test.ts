@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createGame } from '../src/setup.js';
 import { applyAction } from '../src/reducer.js';
 import { chooseBotAction } from '../src/bot.js';
+import { RESOURCES } from '../src/design.js';
+import type { ResourceType } from '../src/design.js';
 import type { GameState } from '../src/types.js';
 
 function newGame(players = 3, vpTarget = 10): GameState {
@@ -235,5 +237,70 @@ describe('Zug beenden', () => {
     expect(s.phase).toBe('roll');
     expect(s.players[0].devCards.knight).toBe(1);
     expect(s.players[0].newDevCards.knight).toBe(0);
+  });
+});
+
+describe('Auto-Abwerfen (autoDiscard) — Karte für Karte zufällig', () => {
+  function discardScenario(hand: Partial<Record<ResourceType, number>>, need: number, seedNudge = 0): GameState {
+    const s = newGame(3);
+    driveSetup(s);
+    const pid = s.order[0];
+    const p = s.players.find((pl) => pl.id === pid)!;
+    p.resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0, ...hand };
+    s.phase = 'discard';
+    s.mustDiscard = { [pid]: need };
+    s.rngState = (s.rngState + seedNudge) >>> 0;
+    return s;
+  }
+
+  it('wirft genau N ab, konserviert Karten (Hand → Bank), Phase → moveRobber', () => {
+    const s = discardScenario({ wood: 3, brick: 3, wool: 2 }, 4);
+    const pid = s.order[0];
+    const p = s.players.find((pl) => pl.id === pid)!;
+    const bankBefore = { ...s.bank };
+    const handBefore = { ...p.resources };
+    ok(applyAction(s, pid, { type: 'autoDiscard' }));
+    let moved = 0;
+    for (const r of RESOURCES) {
+      expect(p.resources[r]).toBeLessThanOrEqual(handBefore[r]); // Hand nur reduziert
+      const d = handBefore[r] - p.resources[r];
+      expect(s.bank[r] - bankBefore[r]).toBe(d); // exakt diese Menge in die Bank
+      moved += d;
+    }
+    expect(moved).toBe(4);
+    expect(s.mustDiscard[pid]).toBeUndefined();
+    expect(s.phase).toBe('moveRobber');
+  });
+
+  it('ist deterministisch für gegebenen RNG-State', () => {
+    const a = discardScenario({ wood: 4, brick: 4 }, 3);
+    const b = discardScenario({ wood: 4, brick: 4 }, 3);
+    ok(applyAction(a, a.order[0], { type: 'autoDiscard' }));
+    ok(applyAction(b, b.order[0], { type: 'autoDiscard' }));
+    const pa = a.players.find((p) => p.id === a.order[0])!.resources;
+    const pb = b.players.find((p) => p.id === b.order[0])!.resources;
+    expect(pa).toEqual(pb);
+  });
+
+  it('entscheidet pro Karte zufällig — kommt zu einem Mix, nicht immer „alles von einer Sorte"', () => {
+    // Hand {wood:5, brick:5}, need=2: über viele RNG-States muss mindestens einmal
+    // ein 1:1-Mix herauskommen (echter Per-Karte-Zufall).
+    let sawMix = false;
+    for (let i = 0; i < 60 && !sawMix; i++) {
+      const s = discardScenario({ wood: 5, brick: 5 }, 2, (i * 2654435761) >>> 0);
+      const pid = s.order[0];
+      const before = { ...s.players.find((p) => p.id === pid)!.resources };
+      applyAction(s, pid, { type: 'autoDiscard' });
+      const after = s.players.find((p) => p.id === pid)!.resources;
+      if (before.wood - after.wood === 1 && before.brick - after.brick === 1) sawMix = true;
+    }
+    expect(sawMix).toBe(true);
+  });
+
+  it('lehnt autoDiscard außerhalb der Abwurf-Phase ab', () => {
+    const s = newGame(3);
+    driveSetup(s);
+    s.phase = 'main';
+    err(applyAction(s, s.order[0], { type: 'autoDiscard' }));
   });
 });

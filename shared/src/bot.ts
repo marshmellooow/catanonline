@@ -5,7 +5,6 @@
 
 import type { GameState, TradeOffer } from './types.js';
 import type { GameAction } from './actions.js';
-import type { ResourceType } from './design.js';
 import { RESOURCES, TERRAIN_RESOURCE, pipCount } from './design.js';
 import { validSettlementCorners, canPlaceRoad, resourceTotal } from './logic.js';
 
@@ -71,19 +70,9 @@ export function chooseBotAction(state: GameState, botId: string): GameAction | n
       return { type: 'rollDice' };
     }
     case 'discard': {
-      const need = state.mustDiscard[botId];
-      if (need === undefined) return null;
-      const p = state.players.find((pl) => pl.id === botId)!;
-      const disc: Partial<Record<ResourceType, number>> = {};
-      let left = need;
-      // von den häufigsten Rohstoffen abwerfen
-      const byCount = RESOURCES.slice().sort((a, b) => p.resources[b] - p.resources[a]);
-      for (const r of byCount) {
-        if (left <= 0) break;
-        const take = Math.min(left, p.resources[r]);
-        if (take > 0) { disc[r] = take; left -= take; }
-      }
-      return { type: 'discard', resources: disc };
+      if (state.mustDiscard[botId] === undefined) return null;
+      // Karte für Karte zufällig abwerfen — einheitlich mit dem Auto-Abwurf bei Zeitablauf.
+      return { type: 'autoDiscard' };
     }
     case 'moveRobber': {
       if (!isActive) return null;
