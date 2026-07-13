@@ -1,5 +1,6 @@
 import { APP_VERSION_LABEL } from '@catan/shared';
 import { X } from '../icons';
+import { InfoBasics } from './game/InfoBasics';
 
 /**
  * Info- & Regeln-Dialog. Aktuell zeigt er die App-Version (aus @catan/shared,
@@ -29,10 +30,7 @@ export function InfoDialog({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
-          <section className="info-sec">
-            <h3>Ausführliche Regeln</h3>
-            <p className="muted">Die vollständigen Regeln folgen in einer der nächsten Versionen an dieser Stelle.</p>
-          </section>
+          <InfoBasics />
         </div>
 
         <div className="info-foot">
