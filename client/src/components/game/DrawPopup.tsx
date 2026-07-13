@@ -5,43 +5,51 @@ import { RESOURCE_ORDER } from './ui';
 import { ResourceCard } from './ResourceCard';
 
 /**
- * Kurzes „Du ziehst"-Popup, NUR für den Betrachter selbst: sobald man Karten erhält
- * (Ausschüttung, Erfindung, Monopol, Diebstahl), erscheinen sie kurz groß über der Hand.
- * Getrennt von den fliegenden Karten (Board→Hand-Animation) — reine Info „was habe ich bekommen".
+ * Kurzes Karten-Popup, NUR für den Betrachter selbst: was man erhält (Ausschüttung,
+ * Erfindung, Monopol, selbst geklaut) ODER was einem gestohlen wurde — kurz groß über
+ * der Hand. Getrennt von den fliegenden Karten (Board→Hand-Animation).
  */
 interface Draw {
   id: number;
   counts: ResourceCounts;
   title: string;
+  kind: 'gain' | 'loss';
 }
+
+const SHOW_MS = 3100; // Anzeigedauer (1 Sekunde länger als vorher)
 
 let counter = 0;
 
 function empty(): ResourceCounts {
   return { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
 }
+function sum(c: ResourceCounts): number {
+  return RESOURCE_ORDER.reduce((s, r) => s + c[r], 0);
+}
 
-/** Netto-Kartengewinn des Betrachters aus einer Event-Batch (redigiert, d. h. `me`-Sicht). */
-function gainsForMe(events: GameEvent[], me: string): { counts: ResourceCounts; title: string } | null {
-  const c = empty();
-  let title = 'Du erhältst';
+/** Karten-Änderung des Betrachters aus einer Event-Batch (redigiert, d. h. `me`-Sicht). */
+function changeForMe(events: GameEvent[], me: string): Draw | null {
+  const gain = empty();
+  let gainTitle = 'Du erhältst';
+  const loss = empty(); // was MIR gestohlen wurde (Opfer sieht den Rohstoff, Dritte nicht)
   for (const ev of events) {
     if (ev.t === 'produce') {
       const mine = ev.gains[me];
-      if (mine) for (const r of RESOURCE_ORDER) c[r] += mine[r] ?? 0;
-    } else if (ev.t === 'steal' && ev.to === me && ev.resource) {
-      c[ev.resource] += 1;
-      title = 'Gestohlen';
+      if (mine) for (const r of RESOURCE_ORDER) gain[r] += mine[r] ?? 0;
+    } else if (ev.t === 'steal' && ev.resource) {
+      if (ev.to === me) { gain[ev.resource] += 1; gainTitle = 'Gestohlen'; }
+      else if (ev.from === me) { loss[ev.resource] += 1; }
     } else if (ev.t === 'yearOfPlenty' && ev.player === me) {
-      for (const r of ev.resources) c[r] += 1;
-      title = 'Erfindung';
+      for (const r of ev.resources) gain[r] += 1;
+      gainTitle = 'Erfindung';
     } else if (ev.t === 'monopoly' && ev.player === me && ev.total > 0) {
-      c[ev.resource] += ev.total;
-      title = 'Monopol';
+      gain[ev.resource] += ev.total;
+      gainTitle = 'Monopol';
     }
   }
-  const total = RESOURCE_ORDER.reduce((s, r) => s + c[r], 0);
-  return total > 0 ? { counts: c, title } : null;
+  if (sum(gain) > 0) return { id: counter++, counts: gain, title: gainTitle, kind: 'gain' };
+  if (sum(loss) > 0) return { id: counter++, counts: loss, title: 'Dir gestohlen', kind: 'loss' };
+  return null;
 }
 
 export function DrawPopup() {
@@ -55,11 +63,10 @@ export function DrawPopup() {
     processedRef.current = lastEvents;
     if (!lastEvents.length || !me) return;
 
-    const g = gainsForMe(lastEvents, me);
-    if (!g) return;
-    const id = counter++;
-    setDraw({ id, counts: g.counts, title: g.title });
-    const t = setTimeout(() => setDraw((cur) => (cur && cur.id === id ? null : cur)), 2100);
+    const d = changeForMe(lastEvents, me);
+    if (!d) return;
+    setDraw(d);
+    const t = setTimeout(() => setDraw((cur) => (cur && cur.id === d.id ? null : cur)), SHOW_MS);
     return () => clearTimeout(t);
   }, [lastEvents, me]);
 
@@ -68,7 +75,7 @@ export function DrawPopup() {
 
   return (
     <div className="draw-overlay">
-      <div className="draw-pop" key={draw.id}>
+      <div className={`draw-pop ${draw.kind === 'loss' ? 'loss' : ''}`} key={draw.id}>
         <div className="draw-title">{draw.title}</div>
         <div className="draw-cards">
           {cards.map((r) => (

@@ -35,7 +35,9 @@ export function Game() {
   const [buildIntent, setBuildIntent] = useState<BuildIntent>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [devPrompt, setDevPrompt] = useState<'yearOfPlenty' | 'monopoly' | null>(null);
-  const [showChat, setShowChat] = useState(false);
+  // Chat von Beginn an offen (manuell einklappbar). Auf schmalen Screens (Mobil) zu,
+  // da der Chat-Drawer dort sonst das Brett verdeckt.
+  const [showChat, setShowChat] = useState(() => typeof window !== 'undefined' && window.innerWidth > 720);
   const [showSettings, setShowSettings] = useState(false);
   // Mobil: Spieler-/Bank-Panel als ausklappbares Bottom-Sheet (statt Dauer-Overlay).
   // Nur eins gleichzeitig offen; auf Desktop per CSS unwirksam (Chips ausgeblendet).

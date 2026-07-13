@@ -1,7 +1,7 @@
 {
   "name": "catan-online",
   "private": true,
-  "version": "3.1.5",
+  "version": "3.1.6",
   "type": "module",
   "workspaces": [
     "shared",

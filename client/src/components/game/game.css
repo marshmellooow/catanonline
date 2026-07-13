@@ -1127,7 +1127,14 @@
   background: linear-gradient(180deg, rgba(30, 40, 50, 0.96), rgba(18, 26, 34, 0.96));
   border: 1.5px solid var(--gold);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  animation: drawPop 2.1s ease forwards;
+  animation: drawPop 3.1s ease forwards;
+}
+/* „Dir gestohlen" (Verlust) — rot statt gold */
+.draw-pop.loss {
+  border-color: #e86c4a;
+}
+.draw-pop.loss .draw-title {
+  color: #ff8a63;
 }
 .draw-title {
   font-family: 'Marcellus', serif;
