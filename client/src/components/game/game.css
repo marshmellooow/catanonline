@@ -73,15 +73,17 @@
 .turn-red-pulse {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  /* Über den Panels (Bank/Spielerleiste/Feed liegen bei z 200–320 und würden die
+     Rand-Vignette an den Ecken sonst verdecken), aber unter Dialogen (z 500+). */
+  z-index: 470;
   pointer-events: none;
-  background: radial-gradient(ellipse 130% 120% at 50% 50%, transparent 52%, rgba(216, 48, 40, 0.6) 100%);
+  background: radial-gradient(ellipse 125% 118% at 50% 50%, transparent 18%, rgba(224, 40, 32, 0.92) 100%);
   animation: screenRedPulse 1s ease-in-out infinite;
   will-change: opacity;
 }
 @keyframes screenRedPulse {
-  0%, 100% { opacity: 0.18; }
-  50% { opacity: 0.7; }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* Großer Intro-Timer: blitzt mittig groß auf und schrumpft in die obere Ecke. */
@@ -144,7 +146,7 @@
 @media (prefers-reduced-motion: reduce) {
   .turn-red-pulse {
     animation: none;
-    opacity: 0.32;
+    opacity: 0.6;
   }
   .turn-big {
     animation: turnBigInReduced 2.2s ease forwards;
