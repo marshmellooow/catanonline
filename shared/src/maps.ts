@@ -6,13 +6,6 @@ import type { TerrainCode } from './design.js';
 
 export type PortType = '3:1' | 'wood' | 'brick' | 'wool' | 'grain' | 'ore';
 
-export interface PortDef {
-  r: number;
-  c: number;
-  type: PortType;
-  deg: number; // Steg-Richtung
-}
-
 export interface MapDef {
   id: string;
   title: string;
@@ -21,7 +14,6 @@ export interface MapDef {
   maxPlayers: number;
   hexW: number;
   rows: Array<{ offset?: number; cells: Array<[TerrainCode, number | null]> }>;
-  ports?: PortDef[];
 }
 
 /** Aus einem kompakten String eine Zellenreihe bauen (Zahlen aus Pool). */
@@ -55,7 +47,7 @@ const MAP1: MapDef = {
 const MAP2: MapDef = {
   id: 'coast',
   title: 'Map 2 · Küstenland',
-  desc: '30 Land-Felder als Insel mit Wasserrand und Binnensee, 4–5 Spieler.',
+  desc: '30 Land-Felder als Insel mit Wasserrand, Binnensee und zufälligen Küstenhäfen, 4–5 Spieler.',
   minPlayers: 2,
   maxPlayers: 5,
   hexW: 88,
@@ -77,7 +69,7 @@ const MAP3: MapDef = {
 const MAP4: MapDef = {
   id: 'lakes',
   title: 'Map 4 · Seenland',
-  desc: 'Kontinent mit verstreuten Binnenseen — kompakt, mit Engstellen. 4–6 Spieler.',
+  desc: 'Kontinent mit verstreuten Binnenseen und Seehäfen — kompakt, mit Engstellen. 4–6 Spieler.',
   minPlayers: 2,
   maxPlayers: 6,
   hexW: 84,
@@ -88,23 +80,11 @@ const MAP4: MapDef = {
 const MAP5: MapDef = {
   id: 'harbor',
   title: 'Map 5 · Große Hafenkarte',
-  desc: '42 Land-Felder mit Wasserrand und 10 Häfen. 6–10 Spieler.',
+  desc: '42 Land-Felder mit Wasserrand und zufälligen Küstenhäfen. 6–10 Spieler.',
   minPlayers: 2,
   maxPlayers: 10,
   hexW: 88,
   rows: ['WWWWWWWWWWW', 'WWFGPMGFWWW', 'WGHFGPHMGWW', 'WPMGFHGPFGW', 'WGFPDGMHGWW', 'WWHGFPGFMWW', 'WWWGMHPWWWW', 'WWWWWWWWWWW'].map((s) => ({ cells: parseRow(s) })),
-  ports: [
-    { r: 0, c: 3, type: '3:1', deg: 90 },
-    { r: 0, c: 6, type: 'wood', deg: 90 },
-    { r: 1, c: 1, type: 'brick', deg: 0 },
-    { r: 1, c: 8, type: '3:1', deg: 180 },
-    { r: 2, c: 0, type: 'wool', deg: 0 },
-    { r: 3, c: 10, type: '3:1', deg: 180 },
-    { r: 4, c: 9, type: 'grain', deg: 180 },
-    { r: 5, c: 1, type: 'wool', deg: 0 },
-    { r: 6, c: 7, type: 'ore', deg: 180 },
-    { r: 7, c: 4, type: '3:1', deg: -90 },
-  ],
 };
 
 export const MAPS: MapDef[] = [MAP1, MAP2, MAP3, MAP4, MAP5];

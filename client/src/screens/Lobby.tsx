@@ -84,8 +84,8 @@ export function Lobby() {
         <div className="panel" style={{ padding: 16, display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
           <div>
             <div className="field-label">Siegpunkte-Ziel</div>
-            <div className="row gap-2">
-              {[8, 10, 12].map((v) => (
+            <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+              {[8, 10, 12, 15, 18, 20].map((v) => (
                 <button
                   key={v}
                   className={`btn btn-sm ${room.vpTarget === v ? 'btn-gold' : 'btn-ghost'}`}

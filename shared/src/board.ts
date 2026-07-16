@@ -4,7 +4,7 @@
 
 import type { Board, Hex, Corner, Edge, Port } from './types.js';
 import type { TerrainCode } from './design.js';
-import { getMap, type MapDef, type PortDef } from './maps.js';
+import { getMap, type MapDef, type PortType } from './maps.js';
 import { createRng, shuffle, nextInt, type RngState } from './rng.js';
 
 const H_RATIO = 1.1547; // Höhe = Breite × 1.1547
@@ -131,45 +131,89 @@ function buildGeometry(map: MapDef): Geometry {
     }
   }
 
-  const ports = buildPorts(map, hexes, corners, hexW, step, h);
-
-  return { hexes, corners, edges, width: Math.ceil(maxX), height: Math.ceil(maxY), ports };
+  // Häfen werden erst in buildBoard (seed-basiert, nach der finalen Wasser-Form) erzeugt.
+  return { hexes, corners, edges, width: Math.ceil(maxX), height: Math.ceil(maxY), ports: [] };
 }
 
 // hexW als reine Breite (Helper, falls später Padding gewünscht)
 const w0 = (w: number) => w;
 
-/** Häfen den 2 nächstgelegenen Küsten-Ecken zuordnen (Heuristik, spielbar). */
-function buildPorts(map: MapDef, hexes: Hex[], corners: Corner[], hexW: number, step: number, h: number): Port[] {
-  if (!map.ports) return [];
-  // Küsten-Ecken: berühren Land UND Wasser
-  const isWater = (hid: number) => hexes[hid].terrain === 'W';
-  const coastal = corners.filter((c) => {
-    const hasLand = c.hexes.some((hid) => !isWater(hid));
-    const hasWater = c.hexes.some((hid) => isWater(hid));
-    return hasLand && hasWater;
+/** Ausgewogenes Hafen-Typ-Multiset der Größe n (klassisch: 4× 3:1 : je 1× Rohstoff = 9).
+ *  Hamilton/Größter-Rest → gleiche faire Anteile unabhängig von n; Positionen werden gemischt. */
+function balancedPortTypes(n: number): PortType[] {
+  const mix: Array<[PortType, number]> = [
+    ['3:1', 4],
+    ['wood', 1],
+    ['brick', 1],
+    ['wool', 1],
+    ['grain', 1],
+    ['ore', 1],
+  ];
+  const total = 9;
+  const alloc = mix.map(([t, w]) => {
+    const exact = (n * w) / total;
+    const base = Math.floor(exact);
+    return { t, count: base, frac: exact - base };
   });
-  const dist2 = (c: Corner, px: number, py: number) => (c.x - px) ** 2 + (c.y - py) ** 2;
+  let assigned = alloc.reduce((s, a) => s + a.count, 0);
+  const byFrac = alloc.map((_, i) => i).sort((i, j) => alloc[j].frac - alloc[i].frac);
+  for (let k = 0; assigned < n; k++, assigned++) alloc[byFrac[k % byFrac.length]].count++;
+  const out: PortType[] = [];
+  for (const a of alloc) for (let c = 0; c < a.count; c++) out.push(a.t);
+  return out;
+}
 
-  return map.ports.map((p: PortDef, idx: number): Port => {
-    const px = (p.c + (p.r % 2) * 0.5) * hexW + hexW / 2;
-    const py = p.r * step + h / 2;
-    const sorted = coastal.slice().sort((a, b) => dist2(a, px, py) - dist2(b, px, py));
-    const first = sorted[0];
-    // zweite Ecke: nächste zu first benachbarte Küsten-Ecke
-    let second: Corner | undefined;
-    for (const c of sorted) {
-      if (c === first) continue;
-      if (first && first.adjacent.includes(c.id)) {
-        second = c;
-        break;
-      }
-    }
-    const cornerIds = [first?.id, second?.id].filter((v): v is number => v !== undefined);
-    cornerIds.forEach((cid) => {
-      if (corners[cid].portId === null) corners[cid].portId = idx;
+/** Zufällige Küstenhäfen (seed-basiert) auf allen Wasser-Karten: verteilt rund um jede
+ *  Land/Wasser-Grenze. Ein Hafen sitzt auf einer Küstenkante; seine 2 Eck-Endpunkte sind
+ *  die baubaren Anleger. Greedy ohne geteilte Ecken → gestreut (nie zwei Häfen an einer
+ *  Ecke). Reine Land-Karten (kein Wasser) bekommen keine Häfen. Deterministisch. */
+function generatePorts(hexes: Hex[], corners: Corner[], edges: Edge[], rng: RngState): Port[] {
+  const isWater = (hid: number) => hexes[hid].terrain === 'W';
+  if (!hexes.some((h) => h.terrain === 'W')) return [];
+
+  // Kandidaten: Kanten genau an der Land/Wasser-Grenze (1 Land- + 1 Wasser-Hex)
+  const candidates = edges
+    .filter((e) => e.hexes.length === 2 && e.hexes.filter(isWater).length === 1)
+    .map((e) => {
+      const wid = e.hexes.find(isWater)!;
+      const wh = hexes[wid];
+      const ca = corners[e.a];
+      const cb = corners[e.b];
+      const midX = (ca.x + cb.x) / 2;
+      const midY = (ca.y + cb.y) / 2;
+      return {
+        a: e.a,
+        b: e.b,
+        waterHex: wid,
+        // Plakette leicht ins Wasser gerückt (zwischen Küstenkante und Wasser-Hex-Mitte)
+        x: Math.round(midX + (wh.cx - midX) * 0.5),
+        y: Math.round(midY + (wh.cy - midY) * 0.5),
+        deg: Math.round((Math.atan2(wh.cy - midY, wh.cx - midX) * 180) / Math.PI),
+      };
     });
-    return { id: idx, type: p.type, x: Math.round(px), y: Math.round(py), deg: p.deg, corners: cornerIds };
+  if (!candidates.length) return [];
+
+  const landCount = hexes.filter((h) => h.terrain !== 'W').length;
+  const target = Math.max(4, Math.round(landCount / 2.5)); // Catan-nahe Dichte, rund um die Küste
+  const order = shuffle(rng, candidates);
+  const usedCorners = new Set<number>();
+  const usedWater = new Set<number>();
+  const chosen: typeof candidates = [];
+  for (const c of order) {
+    if (chosen.length >= target) break;
+    // Streuung: höchstens EIN Hafen je Wasser-Hex (sonst stapeln sich die Plaketten,
+    // da alle zur selben Hex-Mitte gerückt werden) UND keine zwei Häfen an derselben Ecke.
+    if (usedWater.has(c.waterHex) || usedCorners.has(c.a) || usedCorners.has(c.b)) continue;
+    usedWater.add(c.waterHex);
+    usedCorners.add(c.a);
+    usedCorners.add(c.b);
+    chosen.push(c);
+  }
+  const types = shuffle(rng, balancedPortTypes(chosen.length));
+  return chosen.map((c, idx): Port => {
+    corners[c.a].portId = idx;
+    corners[c.b].portId = idx;
+    return { id: idx, type: types[idx], x: c.x, y: c.y, deg: c.deg, corners: [c.a, c.b] };
   });
 }
 
@@ -383,6 +427,7 @@ export function buildBoard(mapId: string, seed: number): Board {
   repairConnectivity(geo.hexes, geo.corners); // isolierte Land-Inseln entfernen
   shuffleTerrain(geo.hexes, rng); // Terrain jede Partie neu mischen (Form bleibt)
   assignNumbers(geo.hexes, rng); // frische Zahlen (6/8 nie benachbart)
+  geo.ports = generatePorts(geo.hexes, geo.corners, geo.edges, rng); // zufällige Küstenhäfen (Wasser-Karten)
 
   return {
     mapId,

@@ -74,8 +74,9 @@ describe('Board-Geometrie', () => {
       expect(b.corners.length).toBeGreaterThan(0);
     }
     const harbor = buildBoard('harbor', 5);
-    expect(harbor.ports.length).toBe(10);
-    // jeder Hafen hat 1–2 zugeordnete Ecken
-    for (const p of harbor.ports) expect(p.corners.length).toBeGreaterThanOrEqual(1);
+    // Häfen sind jetzt prozedural (seed-basiert, Anzahl variiert) — Details in ports.test.ts
+    expect(harbor.ports.length).toBeGreaterThan(0);
+    // jeder Hafen hat genau 2 zugeordnete Ecken
+    for (const p of harbor.ports) expect(p.corners.length).toBe(2);
   });
 });
