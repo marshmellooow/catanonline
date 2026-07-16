@@ -267,7 +267,8 @@ export function RoadPiece({ x1, y1, x2, y2, w, color }: { x1: number; y1: number
 }
 
 export function Settlement({ x, y, w, color, city }: { x: number; y: number; w: number; color: PlayerColor; city?: boolean }) {
-  const s = w * (city ? 0.3 : 0.24);
+  // 5 % größer als zuvor (0.30→0.315 / 0.24→0.252), damit Siedlungen/Städte besser sichtbar sind.
+  const s = w * (city ? 0.315 : 0.252);
   return (
     <g transform={`translate(${x - s / 2}, ${y - s / 2})`} style={{ pointerEvents: 'none', filter: 'drop-shadow(0 1px 1px rgba(0,0,0,.7))' }}>
       {city ? (

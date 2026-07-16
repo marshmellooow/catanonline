@@ -202,8 +202,11 @@ export function Game() {
       </div>
 
       <div className="game-footer">
-        <Hand onPlayDev={onPlayDev} />
-        <ActionBar buildIntent={buildIntent} setBuildIntent={setBuildIntent} onTrade={() => setTradeOpen(true)} />
+        {/* Streifen (Hintergrund/Rahmen) nur so breit wie der Inhalt → stört das Brett nicht über die volle Breite. */}
+        <div className="footer-inner">
+          <Hand onPlayDev={onPlayDev} />
+          <ActionBar buildIntent={buildIntent} setBuildIntent={setBuildIntent} onTrade={() => setTradeOpen(true)} />
+        </div>
       </div>
 
       <DiscardDialog />

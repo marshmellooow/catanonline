@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../../store';
 import { COSTS, canAfford, type ResourceCounts } from '@catan/shared';
-import { Dices } from '../../icons';
+import { Dices, Check, X } from '../../icons';
 import { RESOURCE_ORDER } from './ui';
 import { ResChip } from './ResChip';
 
@@ -59,6 +59,26 @@ function BuildButton({
   );
 }
 
+/** „Entwicklungskarte kaufen" mit Bestätigungsschritt (kleiner Haken ✓ / Abbrechen ✕),
+ *  damit man nicht versehentlich kauft. */
+function DevCardBuyButton({ res, disabled, onBuy }: { res: ResourceCounts; disabled: boolean; onBuy: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  if (confirming) {
+    return (
+      <span className="dev-buy-confirm">
+        <span className="dev-buy-q">Entwicklungskarte kaufen?</span>
+        <button className="btn btn-green btn-sm dev-buy-btn" title="Kaufen" aria-label="Kaufen bestätigen" onClick={() => { onBuy(); setConfirming(false); }}>
+          <Check size={16} />
+        </button>
+        <button className="btn btn-ghost btn-sm dev-buy-btn" title="Abbrechen" aria-label="Abbrechen" onClick={() => setConfirming(false)}>
+          <X size={16} />
+        </button>
+      </span>
+    );
+  }
+  return <BuildButton label="Entwicklungskarte kaufen" cost={COSTS.devCard} res={res} disabled={disabled} onClick={() => setConfirming(true)} />;
+}
+
 export function ActionBar({
   buildIntent,
   setBuildIntent,
@@ -106,7 +126,7 @@ export function ActionBar({
         <BuildButton label="Straße" cost={COSTS.road} res={res} active={buildIntent === 'road'} disabled={!canBuyRoad} onClick={() => toggle('road')} />
         <BuildButton label="Siedlung" cost={COSTS.settlement} res={res} active={buildIntent === 'settlement'} disabled={!canBuySettlement} onClick={() => toggle('settlement')} />
         <BuildButton label="Stadt" cost={COSTS.city} res={res} active={buildIntent === 'city'} disabled={!canBuyCity} onClick={() => toggle('city')} />
-        <BuildButton label="Karte kaufen" cost={COSTS.devCard} res={res} disabled={!canBuyDev} onClick={() => act({ type: 'buyDevCard' })} />
+        <DevCardBuyButton res={res} disabled={!canBuyDev} onBuy={() => act({ type: 'buyDevCard' })} />
         <button className="btn btn-ghost" onClick={onTrade}>Handeln</button>
         <div className="action-spacer" />
         <button className="btn btn-green" onClick={() => { setBuildIntent(null); act({ type: 'endTurn' }); }}>Zug beenden</button>

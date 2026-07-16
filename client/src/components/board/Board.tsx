@@ -1,8 +1,46 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { Board as BoardT, PlayerColor } from '@catan/shared';
 import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs, hexVerts } from './pieces';
 
 const PAD = 34;
+
+/** Splash-/Ripple-Welle: pulst kurz auf, wenn eine Siedlung/Stadt/Straße NEU auftaucht.
+ *  Vergleicht die Bauwerks-/Straßen-Keys mit dem vorigen Render; für jeden neuen Ort
+ *  ein expandierender Ring am Ecken- (Bauwerk) bzw. Kantenmittelpunkt (Straße). */
+function PlacementFx({ buildings, roads, board }: Pick<BoardProps, 'buildings' | 'roads' | 'board'>) {
+  const w = board.hexW;
+  const prev = useRef<{ b: Set<string>; r: Set<string> } | null>(null);
+  const [ripples, setRipples] = useState<Array<{ id: number; x: number; y: number; r: number }>>([]);
+  const nextId = useRef(0);
+  const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  useEffect(() => {
+    const bKeys = new Set(Object.keys(buildings));
+    const rKeys = new Set(Object.keys(roads));
+    const p = prev.current;
+    if (p) {
+      const add: Array<{ id: number; x: number; y: number; r: number }> = [];
+      for (const k of bKeys) if (!p.b.has(k)) { const c = board.corners[Number(k)]; if (c) add.push({ id: nextId.current++, x: c.x, y: c.y, r: w * 0.26 }); }
+      for (const k of rKeys) if (!p.r.has(k)) { const e = board.edges[Number(k)]; if (e) add.push({ id: nextId.current++, x: (e.x1 + e.x2) / 2, y: (e.y1 + e.y2) / 2, r: w * 0.2 }); }
+      if (add.length) {
+        setRipples((cur) => [...cur, ...add]);
+        const ids = new Set(add.map((a) => a.id));
+        timers.current.push(setTimeout(() => setRipples((cur) => cur.filter((x) => !ids.has(x.id))), 780));
+      }
+    }
+    prev.current = { b: bKeys, r: rKeys };
+  }, [buildings, roads, board, w]);
+
+  useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
+
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {ripples.map((rp) => (
+        <circle key={rp.id} className="placement-ripple" cx={rp.x} cy={rp.y} r={rp.r} fill="none" stroke="#FFF6E0" strokeWidth={w * 0.05} />
+      ))}
+    </g>
+  );
+}
 
 /** Ein Tortenstück (Segment i von n) als SVG-Pfad um (cx,cy) mit Radius r; Start oben. */
 function pieSlice(cx: number, cy: number, r: number, i: number, n: number): string {
@@ -82,6 +120,9 @@ export const Board = memo(function Board(props: BoardProps) {
 
       {/* Räuber */}
       {board.hexes[robberHex] && <Robber hex={board.hexes[robberHex]} />}
+
+      {/* Splash-Welle bei neuen Bauten (Siedlung/Stadt/Straße) */}
+      <PlacementFx buildings={buildings} roads={roads} board={board} />
 
       {/* Highlights + Klick-Ziele */}
       {/* Räuber-Platzierung: kleines, VOLLdeckendes Farb-Emblem rechts über der Zahl

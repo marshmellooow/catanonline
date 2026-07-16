@@ -502,11 +502,13 @@
 
 /* Chat drawer */
 .chat-drawer {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
+  /* Unten rechts am Bildschirm (nutzt den durch den schmalen Footer-Streifen frei
+     gewordenen Platz), mit etwas Abstand über der unteren Kante / dem Aktions-Streifen. */
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
   width: 300px;
-  height: 360px;
+  height: 340px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -516,18 +518,28 @@
 
 /* ---------- Footer: Hand + Actions ---------- */
 .game-footer {
-  border-top: 1px solid var(--border);
-  background: rgba(6, 20, 30, 0.45);
-  padding: 10px 16px;
+  padding: 8px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  align-items: flex-start; /* Streifen linksbündig — nicht über die volle Breite */
+  justify-content: flex-start;
   /* Stabile Höhe: die Aktionsleiste erscheint/verschwindet je Phase/Zug.
      Ohne Reservierung würde der Brett-Bereich (1fr) mitspringen. Reserviert Platz
      für Hand (1 Reihe) + Gap + Aktionsleiste → Brett sitzt fest.
      Skaliert mit der UI-Größe, damit größere Handkarten nicht abgeschnitten werden. */
   min-height: calc(172px * var(--ui-scale, 1));
-  justify-content: flex-start;
+}
+/* Der sichtbare Streifen: nur so breit wie sein Inhalt (Hand + Aktionsleiste). */
+.footer-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(6, 20, 30, 0.55);
+  border: 1px solid var(--border);
 }
 .hand {
   display: flex;
@@ -1601,4 +1613,49 @@
   .card-limit-warning {
     animation: none;
   }
+}
+
+/* ---------- Splash-/Ripple-Welle beim Bauen (Siedlung/Stadt/Straße) ---------- */
+.placement-ripple {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: placementRipple 0.78s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+@keyframes placementRipple {
+  0% {
+    transform: scale(0.3);
+    opacity: 0.95;
+  }
+  60% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .placement-ripple {
+    animation: none;
+    opacity: 0;
+  }
+}
+
+/* ---------- Entwicklungskarte kaufen: Bestätigung (Haken/Abbrechen) ---------- */
+.dev-buy-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 10px;
+  background: rgba(235, 194, 94, 0.12);
+  border: 1px solid var(--gold);
+}
+.dev-buy-q {
+  font-weight: 700;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.dev-buy-btn {
+  padding: 7px 9px;
 }
