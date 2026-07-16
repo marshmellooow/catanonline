@@ -17,6 +17,7 @@ import { BuildPopups } from '../components/game/BuildPopups';
 import { LongestRoadBanner } from '../components/game/LongestRoadBanner';
 import { EventLog } from '../components/game/EventLog';
 import { DrawPopup } from '../components/game/DrawPopup';
+import { CardLimitWarning } from '../components/game/CardLimitWarning';
 import { TurnTimer } from '../components/game/TurnTimer';
 import { TurnTimerFx } from '../components/game/TurnTimerFx';
 import { SettingsDialog } from '../components/game/SettingsDialog';
@@ -109,6 +110,12 @@ export function Game() {
   const activeDisconnected = game.players.find((p) => p.id === game.activePlayer && !p.connected && !p.isBot);
   const waitingPause = !!activeDisconnected && (game.phase !== 'discard');
 
+  // Mehr als 7 Rohstoffkarten → bei einer 7 drohen Verluste. Zentrale Warnung anzeigen
+  // (außer man wirft ohnehin gerade ab oder das Spiel ist vorbei).
+  const myRes = game.players.find((p) => p.id === me)?.resources;
+  const myResTotal = myRes ? myRes.wood + myRes.brick + myRes.wool + myRes.grain + myRes.ore : 0;
+  const overCardLimit = myResTotal > 7 && game.phase !== 'discard' && game.phase !== 'finished';
+
   return (
     <div className="game" data-sheet={mobileSheet ?? undefined} style={{ ['--ui-scale' as string]: uiScale }}>
       <div className="game-header">
@@ -170,6 +177,8 @@ export function Game() {
           <EventLog />
         </div>
         <TradeOfferPanel />
+
+        {overCardLimit && <CardLimitWarning count={myResTotal} />}
 
         {waitingPause && (
           <div className="pause-badge">

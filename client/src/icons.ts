@@ -31,4 +31,5 @@ export {
   Settings, // Einstellungen (UI-Größe)
   Timer, // Zug-Countdown
   Info, // Info & Regeln
+  AlertTriangle, // Warnung: mehr als 7 Karten (Abwurf-Gefahr bei 7)
 } from 'lucide-react';

@@ -1531,3 +1531,74 @@
     padding-top: 46px;
   }
 }
+
+/* ---------- Mehr als 7 Karten: Warnung (Abwurf-Gefahr bei einer 7) ---------- */
+/* Handkarten rot blinken lassen, solange man > 7 Rohstoffe hält. */
+@keyframes cardDanger {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 1px rgba(198, 61, 47, 0.45));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px rgba(255, 72, 56, 1));
+  }
+}
+.hand-res.over-limit .res-slot {
+  animation: cardDanger 0.85s ease-in-out infinite;
+}
+
+/* Zentrale rote Mitteilung; blockiert das Brett darunter nicht (pointer-events:none). */
+.card-limit-warning {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 470px);
+  padding: 14px 22px;
+  border-radius: 16px;
+  background: rgba(150, 26, 18, 0.94);
+  border: 2px solid #ff6f5e;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(198, 61, 47, 0.18);
+  animation: cardWarnPulse 1s ease-in-out infinite;
+}
+.card-limit-warning svg {
+  flex-shrink: 0;
+}
+.card-limit-warning b {
+  color: #ffd7cf;
+}
+@keyframes cardWarnPulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 4px rgba(198, 61, 47, 0.18);
+  }
+  50% {
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 9px rgba(255, 72, 56, 0.42);
+  }
+}
+@media (max-width: 720px) {
+  .card-limit-warning {
+    font-size: 15px;
+    padding: 11px 16px;
+    max-width: 92vw;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hand-res.over-limit .res-slot {
+    animation: none;
+    filter: drop-shadow(0 0 5px rgba(255, 72, 56, 0.9));
+  }
+  .card-limit-warning {
+    animation: none;
+  }
+}

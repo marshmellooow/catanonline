@@ -39,7 +39,7 @@ export function PlayerRail() {
                   <span className="stat" title="Handkarten"><Layers size={13} /> {p.resourceCount}</span>
                   <span className="stat" title="Entwicklungskarten"><ScrollText size={13} /> {p.devCardCount}</span>
                   <span className="stat" title="Gespielte Ritter"><Swords size={13} /> {p.playedKnights}</span>
-                  {p.longestRoad && <span className="stat" title="Längste Straße" style={{ color: 'var(--gold)' }}><Route size={14} /></span>}
+                  <span className="stat" title={p.longestRoad ? 'Längste Straße (Auszeichnung, +2 SP)' : 'Längste eigene Straße'} style={p.longestRoad ? { color: 'var(--gold)', fontWeight: 700 } : undefined}><Route size={14} /> {p.roadLength}</span>
                   {p.largestArmy && <span className="stat" title="Größte Rittermacht" style={{ color: 'var(--gold)' }}><Trophy size={14} /></span>}
                 </div>
               </div>

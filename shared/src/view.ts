@@ -2,7 +2,7 @@
 // Eigene Hand & eigene (verdeckte) Karten voll; von Gegnern nur Anzahlen.
 
 import type { GameState, GameEvent, PublicState, PublicPlayer } from './types.js';
-import { resourceTotal, victoryPoints, playerPorts } from './logic.js';
+import { resourceTotal, victoryPoints, playerPorts, computeLongestRoad } from './logic.js';
 
 function devCardTotal(counts: Record<string, number>): number {
   return Object.values(counts).reduce((s, n) => s + n, 0);
@@ -43,6 +43,7 @@ export function toPublicState(state: GameState, viewerId: string): PublicState {
       citiesLeft: p.citiesLeft,
       roadsLeft: p.roadsLeft,
       longestRoad: state.longestRoadHolder === p.id,
+      roadLength: computeLongestRoad(state, p.id),
       largestArmy: state.largestArmyHolder === p.id,
       ports: playerPorts(state, p.id),
     };

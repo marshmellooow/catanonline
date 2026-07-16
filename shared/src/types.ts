@@ -202,6 +202,7 @@ export interface PublicPlayer {
   citiesLeft: number;
   roadsLeft: number;
   longestRoad: boolean;
+  roadLength: number; // Länge der längsten zusammenhängenden Straße dieses Spielers
   largestArmy: boolean;
   ports: PortType[];
   // nur eigene:

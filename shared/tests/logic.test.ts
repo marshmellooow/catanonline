@@ -6,6 +6,7 @@ import {
   canPlaceSettlement, canPlaceRoad, produceResources, computeLongestRoad,
   updateLongestRoad, bestBankRate, resourceTotal,
 } from '../src/logic.js';
+import { toPublicState } from '../src/view.js';
 import { TERRAIN_RESOURCE } from '../src/design.js';
 
 function newGame(players = 3): GameState {
@@ -153,6 +154,17 @@ describe('Längste-Straße-Event (prev)', () => {
     const lr = (r as { events: GameEvent[] }).events.find((e) => e.t === 'longestRoad');
     expect(lr).toMatchObject({ t: 'longestRoad', player: 'p0', prev: 'p1' });
     expect(s.longestRoadHolder).toBe('p0');
+  });
+
+  it('toPublicState liefert die Straßenlänge je Spieler (roadLength) für die Spielerleiste', () => {
+    const s = newGame();
+    buildFifthRoad(s);
+    for (const p of s.players) {
+      const pub = toPublicState(s, p.id).players.find((x) => x.id === p.id)!;
+      expect(pub.roadLength).toBe(computeLongestRoad(s, p.id));
+    }
+    const p0pub = toPublicState(s, 'p0').players.find((x) => x.id === 'p0')!;
+    expect(p0pub.roadLength).toBeGreaterThanOrEqual(5); // p0 hat 5 gebaut
   });
 });
 

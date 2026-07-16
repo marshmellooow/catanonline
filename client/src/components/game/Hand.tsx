@@ -32,10 +32,12 @@ export function Hand({ onPlayDev }: { onPlayDev: (card: DevCardType) => void }) 
 
   const res = you.resources;
   const held = RESOURCE_ORDER.filter((r) => res[r] > 0);
+  // Über 7 Rohstoffkarten → Abwurf-Gefahr bei einer 7: Karten rot blinken lassen.
+  const overLimit = RESOURCE_ORDER.reduce((s, r) => s + res[r], 0) > 7;
 
   return (
     <div className="hand">
-      <div className="hand-res" data-hand>
+      <div className={`hand-res${overLimit ? ' over-limit' : ''}`} data-hand>
         {held.length === 0 && <div className="hand-empty muted">Keine Rohstoffe</div>}
         {held.map((r) => (
           <div key={r} className="res-slot" data-hand-res={r} title={resLabel(r)}>
