@@ -79,6 +79,60 @@ describe('Bankhandel', () => {
   });
 });
 
+describe('Hafenhandel (Siedlung auf Hafen-Ecke senkt den Bankkurs)', () => {
+  // Baut ein Wasser-Board mit Häfen, setzt eine Siedlung auf eine echte Hafen-Ecke
+  // und prüft end-to-end, dass dort zum richtigen Kurs (2:1 / 3:1) getauscht wird.
+  function portGame(seed: number): GameState {
+    const g = createGame({
+      mapId: 'harbor',
+      seed,
+      vpTarget: 10,
+      players: Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, colorIndex: i })),
+    });
+    g.order = g.players.map((p) => p.id);
+    g.activeIndex = 0;
+    g.phase = 'main';
+    g.hasRolled = true;
+    return g;
+  }
+
+  it('Rohstoff-Hafen: 2 gleiche gegen 1 (statt 4)', () => {
+    const g = portGame(7);
+    const rp = g.board.ports.find((p) => p.type !== '3:1');
+    expect(rp, 'harbor-Board sollte einen Rohstoff-Hafen haben').toBeTruthy();
+    const give = rp!.type as ResourceType;
+    // Siedlung auf eine der beiden Hafen-Ecken → Hafen gehört jetzt p0
+    g.buildings[rp!.corners[0]] = { owner: 'p0', type: 'settlement' };
+    const other = (RESOURCES as readonly ResourceType[]).find((r) => r !== give)!;
+    g.players[0].resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    g.players[0].resources[give] = 2;
+    ok(applyAction(g, 'p0', { type: 'bankTrade', give, get: other }));
+    expect(g.players[0].resources[give]).toBe(0); // nur 2 statt 4 abgezogen
+    expect(g.players[0].resources[other]).toBe(1);
+  });
+
+  it('3:1-Hafen: 3 gleiche gegen 1 (statt 4)', () => {
+    const g = portGame(3);
+    const gp = g.board.ports.find((p) => p.type === '3:1');
+    expect(gp, 'harbor-Board sollte einen 3:1-Hafen haben').toBeTruthy();
+    g.buildings[gp!.corners[0]] = { owner: 'p0', type: 'settlement' };
+    g.players[0].resources = { wood: 3, brick: 0, wool: 0, grain: 0, ore: 0 };
+    ok(applyAction(g, 'p0', { type: 'bankTrade', give: 'wood', get: 'ore' }));
+    expect(g.players[0].resources.wood).toBe(0); // 3 statt 4 abgezogen
+    expect(g.players[0].resources.ore).toBe(1);
+  });
+
+  it('ohne Siedlung auf der Hafen-Ecke bleibt es beim 4:1-Kurs', () => {
+    const g = portGame(7);
+    const rp = g.board.ports.find((p) => p.type !== '3:1')!;
+    const give = rp.type as ResourceType;
+    // KEIN Gebäude gesetzt → kein Hafen → Kurs 4
+    g.players[0].resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    g.players[0].resources[give] = 3; // reicht nur für 3, nicht für 4
+    err(applyAction(g, 'p0', { type: 'bankTrade', give, get: (RESOURCES as readonly ResourceType[]).find((r) => r !== give)! }));
+  });
+});
+
 describe('Spielerhandel mit Bestätigungs-Flow', () => {
   it('Angebot → Antwort → Bestätigung tauscht Karten', () => {
     const s = newGame(3);

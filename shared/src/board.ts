@@ -185,16 +185,17 @@ function generatePorts(hexes: Hex[], corners: Corner[], edges: Edge[], rng: RngS
         a: e.a,
         b: e.b,
         waterHex: wid,
-        // Plakette leicht ins Wasser gerückt (zwischen Küstenkante und Wasser-Hex-Mitte)
-        x: Math.round(midX + (wh.cx - midX) * 0.5),
-        y: Math.round(midY + (wh.cy - midY) * 0.5),
+        // Plakette sitzt genau in der MITTE des Wasser-Hexes; von dort führen Holzstege
+        // zu den 2 Anleger-Ecken (siehe PortMark). Max. 1 Hafen je Wasser-Hex ⇒ nie Überlappung.
+        x: Math.round(wh.cx),
+        y: Math.round(wh.cy),
         deg: Math.round((Math.atan2(wh.cy - midY, wh.cx - midX) * 180) / Math.PI),
       };
     });
   if (!candidates.length) return [];
 
   const landCount = hexes.filter((h) => h.terrain !== 'W').length;
-  const target = Math.max(4, Math.round(landCount / 2.5)); // Catan-nahe Dichte, rund um die Küste
+  const target = Math.max(4, Math.round(landCount / 4.5)); // eher sparsam (auf großen Karten sonst zu viele Häfen)
   const order = shuffle(rng, candidates);
   const usedCorners = new Set<number>();
   const usedWater = new Set<number>();

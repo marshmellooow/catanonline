@@ -1659,3 +1659,53 @@
 .dev-buy-btn {
   padding: 7px 9px;
 }
+
+/* ============================================================
+   Desktop (≥721px): Brett nutzt die VOLLE Höhe/Breite; Kopf-/Fußzeile schweben darüber
+   (wie Bank & Spielerleiste), statt als eigene Zeilen das Brett oben/unten abzuschneiden.
+   Steht bewusst am Dateiende → gewinnt bei gleicher Spezifität gegen die Basis-Regeln.
+   Mobil (≤720px) behält das gestapelte Grid-Layout unverändert.
+   ============================================================ */
+@media (min-width: 721px) {
+  .game {
+    position: relative;
+  }
+  .game-main {
+    position: absolute;
+    inset: 0;
+  }
+  .game-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: transparent;
+    border-bottom: none;
+    pointer-events: none; /* leerer Mittelteil lässt das Brett durchklicken … */
+  }
+  .game-header > * {
+    pointer-events: auto; /* … Pille/Buttons bleiben klickbar */
+  }
+  .bank-panel {
+    top: 58px; /* unter die schwebende Kopfzeile */
+  }
+  .rail {
+    top: 58px;
+    max-height: calc(100% - 70px);
+  }
+  .bottom-left {
+    bottom: calc(180px * var(--ui-scale, 1)); /* über dem schwebenden Fuß-Streifen */
+  }
+  .game-footer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    z-index: 25;
+    min-height: 0; /* keine reservierte Voll-Breite mehr → Brett reicht bis unten */
+    pointer-events: none;
+  }
+  .footer-inner {
+    pointer-events: auto;
+  }
+}

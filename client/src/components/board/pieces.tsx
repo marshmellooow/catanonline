@@ -129,6 +129,51 @@ function PortAnyDisc({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
+/** Hölzerner Anlegersteg (Bohlenweg) vom Hafen (Wasser-Hex-Mitte) zu einer Bau-Ecke.
+ *  Zeigt unmissverständlich, WO man siedeln muss, um den Hafen nutzen zu können. */
+function WoodBridge({ x1, y1, x2, y2, w }: { x1: number; y1: number; x2: number; y2: number; w: number }) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  // Einheitsvektor quer zur Steg-Richtung (für Bohlen-Breite & Querbretter)
+  const px = -dy / len;
+  const py = dx / len;
+  const half = w * 0.052; // halbe Steg-Breite
+  const p1x = x1 + px * half, p1y = y1 + py * half;
+  const p2x = x2 + px * half, p2y = y2 + py * half;
+  const p3x = x2 - px * half, p3y = y2 - py * half;
+  const p4x = x1 - px * half, p4y = y1 - py * half;
+  // Querbretter gleichmäßig entlang des Stegs
+  const gap = w * 0.11;
+  const n = Math.max(2, Math.round(len / gap));
+  const slats = [];
+  for (let k = 1; k < n; k++) {
+    const t = k / n;
+    const cx = x1 + dx * t, cy = y1 + dy * t;
+    slats.push({ ax: cx + px * half, ay: cy + py * half, bx: cx - px * half, by: cy - py * half });
+  }
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      {/* weicher Schatten aufs Wasser */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(0,0,0,.22)" strokeWidth={half * 2.6} strokeLinecap="round" />
+      {/* Bohlen-Belag */}
+      <polygon
+        points={`${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y} ${p4x},${p4y}`}
+        fill="#B5843F"
+        stroke="#6E4E26"
+        strokeWidth={Math.max(0.6, w * 0.012)}
+        strokeLinejoin="round"
+      />
+      {/* Längsfuge (Mittellinie) */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8A5F2C" strokeWidth={Math.max(0.4, w * 0.009)} opacity={0.5} />
+      {/* Querbretter */}
+      {slats.map((s, i) => (
+        <line key={i} x1={s.ax} y1={s.ay} x2={s.bx} y2={s.by} stroke="#6E4E26" strokeWidth={Math.max(0.5, w * 0.012)} opacity={0.55} />
+      ))}
+    </g>
+  );
+}
+
 export function PortMark({ port, hexW, corners = [] }: { port: Port; hexW: number; corners?: Array<{ x: number; y: number }> }) {
   const generic = port.type === '3:1';
   const plateW = hexW * 0.74;
@@ -152,22 +197,13 @@ export function PortMark({ port, hexW, corners = [] }: { port: Port; hexW: numbe
   return (
     <g>
       <title>{tip}</title>
-      {/* Steg-Linien vom Hafen zu den 2 nutzbaren Ecken + Anleger-Punkt: zeigt klar, WO man baut. */}
+      {/* Holzstege vom Hafen (Wasser-Mitte) zu den 2 nutzbaren Ecken: zeigt klar, WO man baut. */}
       {corners.map((c, i) => (
-        <g key={`dock-${i}`}>
-          <line
-            x1={port.x}
-            y1={port.y}
-            x2={c.x}
-            y2={c.y}
-            stroke="#B88A46"
-            strokeWidth={hexW * 0.05}
-            strokeLinecap="round"
-            strokeDasharray={`${hexW * 0.02} ${hexW * 0.07}`}
-            opacity={0.9}
-          />
-          <circle cx={c.x} cy={c.y} r={hexW * 0.07} fill="#F8F2DE" stroke="#8a6d3b" strokeWidth={hexW * 0.02} />
-        </g>
+        <WoodBridge key={`dock-${i}`} x1={port.x} y1={port.y} x2={c.x} y2={c.y} w={hexW} />
+      ))}
+      {/* Anleger-Punkt (Poller) an jeder baubaren Ecke — genau hier siedeln, um den Hafen zu nutzen. */}
+      {corners.map((c, i) => (
+        <circle key={`moor-${i}`} cx={c.x} cy={c.y} r={hexW * 0.07} fill="#F8F2DE" stroke="#8a6d3b" strokeWidth={hexW * 0.022} />
       ))}
       <rect
         x={x0}
