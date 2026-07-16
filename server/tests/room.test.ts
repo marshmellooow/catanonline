@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Room } from '../src/room.js';
-import { GRACE_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
+import { GRACE_MS, EMPTY_ROOM_TTL_MS, AUTO_ROLL_MS, BOT_MOVE_DELAY_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
 
 // Stub-Socket: readyState OPEN(1), send no-op — Broadcasts crashen nicht.
 const sock = () => ({ readyState: 1, send() {} }) as never;
@@ -123,7 +123,7 @@ describe('Rematch: returnToLobby', () => {
 });
 
 describe('Room-Cleanup (checkEmpty)', () => {
-  it('Letzter Mensch verlässt Lobby: Raum wird nach 120s zerstört', () => {
+  it('Letzter Mensch verlässt Lobby: Raum wird nach der Leerraum-TTL zerstört', () => {
     vi.useFakeTimers();
     try {
       let emptied: string | null = null;
@@ -131,7 +131,7 @@ describe('Room-Cleanup (checkEmpty)', () => {
       const p0 = room.addPlayer('s0', 'P0', undefined, sock());
       room.handleDisconnect(p0.id);
       expect(emptied).toBeNull();
-      vi.advanceTimersByTime(120_000 + 10);
+      vi.advanceTimersByTime(EMPTY_ROOM_TTL_MS + 10);
       expect(emptied).toBe('T');
     } finally {
       vi.useRealTimers();
@@ -148,7 +148,7 @@ describe('Room-Cleanup (checkEmpty)', () => {
       room.setReady(host.id, true);
       expect(room.startGame(host.id)).toBeNull();
       room.handleDisconnect(host.id);
-      vi.advanceTimersByTime(GRACE_MS + 120_000 + 10);
+      vi.advanceTimersByTime(GRACE_MS + EMPTY_ROOM_TTL_MS + 10);
       expect(emptied).toBe('T');
     } finally {
       vi.useRealTimers();
@@ -291,6 +291,20 @@ describe('Abwurf-Countdown (Auto-Abwerfen nach einer 7)', () => {
       vi.advanceTimersByTime(120_000);
       expect(g.mustDiscard[pid]).toBe(4); // niemand hat automatisch abgeworfen
       expect(handTotal(p.resources)).toBe(8);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('getrennter Abwerfer blockiert die Tafel nicht: Abwurf wird per Bot-Tick sofort aufgelöst (nicht erst nach Grace)', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, g, pid } = discardSetup(0, 4); // Zug-Zeit AUS → nur der Disconnect-Pfad kann auflösen
+      expect(g.mustDiscard[pid]).toBe(4);
+      room.handleDisconnect(pid); // Spieler fällt mitten im Abwerfen raus (bleibt weg)
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS + 300); // ein Bot-Tick — NICHT die 180s-Grace
+      expect(g.mustDiscard[pid]).toBeUndefined(); // sofort aufgelöst, ohne auf Grace zu warten
+      expect(g.phase).toBe('moveRobber'); // Tafel läuft weiter
     } finally {
       vi.useRealTimers();
     }

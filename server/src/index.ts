@@ -7,6 +7,12 @@ import type { ClientMsg, ServerMsg } from '@catan/shared';
 // für den Vite-Client gesetzt) den WS-Server nicht auf denselben Port umleitet.
 const PORT = Number(process.env.CATAN_SERVER_PORT ?? 8787);
 
+// Heartbeat / Toleranz für schlechtes Netz: lieber öfter pingen (hält NAT/Proxy-Mappings
+// offen) und erst nach mehreren verpassten Pongs trennen (ein einzelner Aussetzer bei
+// schlechtem Internet soll die Verbindung nicht sofort killen).
+const HEARTBEAT_MS = 25_000;
+const MAX_MISSED_PONGS = 3; // ~3 × 25s ≈ 75s Toleranz, bevor eine wirklich tote Verbindung getrennt wird
+
 // Raum-Codes: keine mehrdeutigen Zeichen (0/O/1/I/L)
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -28,6 +34,7 @@ interface Conn {
   playerId?: string;
   isSpectator?: boolean;
   alive: boolean;
+  missed: number; // aufeinanderfolgende verpasste Pongs (Heartbeat-Toleranz)
 }
 
 const wss = new WebSocketServer({ port: PORT });
@@ -48,9 +55,12 @@ function send(ws: WebSocket, msg: ServerMsg) {
 }
 
 wss.on('connection', (ws: WebSocket) => {
-  const conn: Conn = { alive: true };
+  const conn: Conn = { alive: true, missed: 0 };
   (ws as unknown as { _conn: Conn })._conn = conn;
-  ws.on('pong', () => (conn.alive = true));
+  ws.on('pong', () => {
+    conn.alive = true;
+    conn.missed = 0;
+  });
 
   ws.on('message', (raw) => {
     let msg: ClientMsg;
@@ -184,14 +194,20 @@ function handle(ws: WebSocket, conn: Conn, msg: ClientMsg) {
   }
 }
 
-// Heartbeat: tote Verbindungen erkennen und schließen
+// Heartbeat: tote Verbindungen erkennen und schließen — aber erst nach mehreren
+// verpassten Pongs, damit ein kurzer Aussetzer bei schlechtem Netz nicht sofort trennt.
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
     const conn = (ws as unknown as { _conn?: Conn })._conn;
     if (!conn) continue;
-    if (!conn.alive) {
-      ws.terminate();
-      continue;
+    if (conn.alive) {
+      conn.missed = 0;
+    } else {
+      conn.missed += 1;
+      if (conn.missed >= MAX_MISSED_PONGS) {
+        ws.terminate(); // wirklich tot (mehrere Zyklen keine Antwort)
+        continue;
+      }
     }
     conn.alive = false;
     try {
@@ -200,7 +216,7 @@ const heartbeat = setInterval(() => {
       /* ignore */
     }
   }
-}, 30_000);
+}, HEARTBEAT_MS);
 
 wss.on('close', () => clearInterval(heartbeat));
 

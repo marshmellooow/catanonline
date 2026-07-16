@@ -8,12 +8,15 @@ interface Handlers {
   getSessionId: () => string | null;
 }
 
+const STALE_MS = 20_000; // seit so lange nichts vom Server → Verbindung gilt als (still) tot → reconnect
+
 let ws: WebSocket | null = null;
 let handlers: Handlers | null = null;
 let retry = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let manualClose = false;
+let lastRecv = Date.now(); // Zeitpunkt der letzten empfangenen Server-Nachricht (Watchdog)
 
 function url(): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -39,15 +42,30 @@ function open() {
 
   socket.onopen = () => {
     retry = 0;
+    lastRecv = Date.now();
     handlers?.onStatus('online');
     // Reconnect: bekannte Sitzung wiederherstellen
     const sid = handlers?.getSessionId();
     if (sid) send({ t: 'rejoin', sessionId: sid });
-    // Latenz-Ping
+    // Latenz-Ping + Watchdog
     if (pingTimer) clearInterval(pingTimer);
-    pingTimer = setInterval(() => send({ t: 'ping', ts: Date.now() }), 5000);
+    pingTimer = setInterval(() => {
+      // Watchdog: seit STALE_MS nichts vom Server empfangen (obwohl wir alle 5s pingen)?
+      // → Verbindung gilt als (still) tot → proaktiv schließen und neu verbinden. Auf Mobil
+      //   hängt das native `close` bei schlechtem Netz oft sehr lange — das fängt es ab.
+      if (Date.now() - lastRecv > STALE_MS) {
+        try {
+          socket.close();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+      send({ t: 'ping', ts: Date.now() });
+    }, 5000);
   };
   socket.onmessage = (ev) => {
+    lastRecv = Date.now();
     try {
       handlers?.onMessage(JSON.parse(ev.data) as ServerMsg);
     } catch {

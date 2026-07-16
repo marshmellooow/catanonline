@@ -17,6 +17,9 @@ function mainPhaseGame(): GameState {
       { id: 'p2', name: 'P2', colorIndex: 2, isBot: true },
     ],
   });
+  // Feste Zugreihenfolge p0,p1,p2 (der zufällige Start-Shuffle ist separat in
+  // turn-order.test.ts getestet) → p0 ist zuverlässig am Zug, unabhängig vom Seed.
+  s.order = s.players.map((p) => p.id);
   s.phase = 'main';
   s.activeIndex = 0;
   s.hasRolled = true;

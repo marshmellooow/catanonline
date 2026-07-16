@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import {
   createGame, applyAction, toPublicState, redactEventsFor, chooseBotAction, getMap,
-  GRACE_MS, BOT_MOVE_DELAY_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS,
+  GRACE_MS, EMPTY_ROOM_TTL_MS, BOT_MOVE_DELAY_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS,
   type GameState, type GameAction, type GameEvent,
   type ServerMsg, type RoomState, type LobbyPlayer,
 } from '@catan/shared';
@@ -200,6 +200,10 @@ export class Room {
         this.scheduleTimers();
         this.checkEmpty();
       }, GRACE_MS);
+      // Timer sofort neu bewerten: blockiert der Getrennte gerade einen Abwurf, löst der
+      // Bot-Tick ihn jetzt auf (findAutoActor deckt getrennte Abwerfer ab) — die Tafel
+      // wartet nicht bis Grace-Ende. Für den regulären Zug greift weiterhin der Zug-Timer.
+      this.scheduleTimers();
       this.broadcastRoom();
       this.checkEmpty();
       return;
@@ -221,7 +225,7 @@ export class Room {
   private checkEmpty() {
     if (this.connectedHumans().length === 0) {
       if (!this.emptyTimer) {
-        this.emptyTimer = setTimeout(() => this.destroy(), 120_000);
+        this.emptyTimer = setTimeout(() => this.destroy(), EMPTY_ROOM_TTL_MS);
       }
     } else {
       this.cancelEmptyTimer();
@@ -441,7 +445,11 @@ export class Room {
     if (!g || g.winner) return null;
     if (g.phase === 'discard') {
       for (const p of this.players) {
-        if (g.mustDiscard[p.id] !== undefined && this.isAuto(p)) return p;
+        // Auto-Akteur für Abwurf: Bots/übernommene Sitze — UND getrennte Spieler (während
+        // der Grace-Frist). Sonst blockiert ein Disconnect mitten im Abwerfen (nach einer 7)
+        // die GANZE Tafel bis Grace-Ende, weil weder der Abwurf-Timer (nur verbundene) noch
+        // der Bot-Pfad (nur auto) ihn auflöst. Sein Abwurf wird stattdessen sofort aufgelöst.
+        if (g.mustDiscard[p.id] !== undefined && (this.isAuto(p) || !p.connected)) return p;
       }
       return null;
     }

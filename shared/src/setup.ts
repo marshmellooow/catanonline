@@ -40,6 +40,12 @@ export function createGame(config: GameConfig): GameState {
   const rng = createRng(config.seed);
   const devDeck = shuffle(rng, buildDevDeck());
 
+  // Startreihenfolge einmal zufällig auslosen — wer zuerst dran ist (und die gesamte
+  // Zugfolge) wird bei jedem Spielstart neu gemischt. Eigener RNG-Strom, damit Würfel
+  // und Dev-Deck unverändert/reproduzierbar bleiben. Die Spielerleiste zeigt `order`.
+  const orderRng = createRng((config.seed ^ 0x5bd1e995) >>> 0);
+  const order = shuffle(orderRng, config.players.map((p) => p.id));
+
   const players: PlayerState[] = config.players.map((pc) => ({
     id: pc.id,
     name: pc.name,
@@ -60,7 +66,7 @@ export function createGame(config: GameConfig): GameState {
   return {
     phase: 'setupSettlement',
     players,
-    order: config.players.map((p) => p.id),
+    order,
     activeIndex: 0,
     board,
     buildings: {},

@@ -69,8 +69,8 @@ export type ServerMsg =
   | { t: 'notFound'; reason: string };
 
 // Konstanten
-export const GRACE_MS = 90_000; // Reconnect-Frist bei Verbindungsverlust
-export const EMPTY_ROOM_TTL_MS = 120_000; // leere Räume nach dieser Zeit löschen
+export const GRACE_MS = 180_000; // Reconnect-Frist bei Verbindungsverlust — großzügig, damit man nach einem Aussetzer zurückkommt, bevor ein Bot den Sitz übernimmt
+export const EMPTY_ROOM_TTL_MS = 240_000; // leere Räume (alle getrennt) erst nach dieser Zeit löschen — mehr Puffer für Reconnect bei schlechtem Netz
 export const BOT_MOVE_DELAY_MS = 700; // Bot-Zug-Verzögerung (spürbar, nicht hektisch)
 export const AUTO_ROLL_MS = 3_000; // Roll-Phase: nach dieser Zeit automatisch für den Spieler würfeln
 export const DEFAULT_TURN_SECONDS = 60; // Zug-Countdown-Standard (0 = aus)

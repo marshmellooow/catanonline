@@ -7,12 +7,16 @@ import type { ResourceType } from '../src/design.js';
 import type { GameState } from '../src/types.js';
 
 function newGame(players = 3, vpTarget = 10): GameState {
-  return createGame({
+  const g = createGame({
     mapId: 'classic',
     seed: 2024,
     vpTarget,
     players: Array.from({ length: players }, (_, i) => ({ id: `p${i}`, name: `P${i}`, colorIndex: i })),
   });
+  // Diese Aktions-Tests erwarten p0,p1,… als feste Zugreihenfolge. Der (separat in
+  // turn-order.test.ts getestete) zufällige Start-Shuffle wird hier neutralisiert.
+  g.order = g.players.map((p) => p.id);
+  return g;
 }
 
 /** Startaufstellung via Bot-Logik durchspielen. */

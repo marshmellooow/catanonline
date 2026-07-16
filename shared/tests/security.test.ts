@@ -6,7 +6,10 @@ import type { GameState } from '../src/types.js';
 import { RESOURCES } from '../src/design.js';
 
 function newGame(players = 3): GameState {
-  return createGame({ mapId: 'classic', seed: 11, players: Array.from({ length: players }, (_, i) => ({ id: `p${i}`, name: `P${i}`, colorIndex: i })) });
+  const g = createGame({ mapId: 'classic', seed: 11, players: Array.from({ length: players }, (_, i) => ({ id: `p${i}`, name: `P${i}`, colorIndex: i })) });
+  // feste Zugreihenfolge p0,p1,… (der zufällige Start-Shuffle ist separat getestet)
+  g.order = g.players.map((p) => p.id);
+  return g;
 }
 function driveSetup(s: GameState) {
   let g = 0;
