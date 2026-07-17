@@ -8,20 +8,29 @@ const TAP_SLOP = 10; // px Bewegung, ab der aus einem Tap eine Geste (Pan) wird
 /**
  * Pinch-Zoom + Pan für das Spielbrett (v. a. große Karten auf Mobil bedienbar).
  *
- * Bewusst nicht-invasiv: das gerenderte SVG bleibt unverändert; hier liegt nur ein
- * CSS-`transform` (translate+scale, `transform-origin: 0 0`) auf dem Inhalt, der
- * imperativ per Ref gesetzt wird (keine Re-Renders während der Geste → flüssig).
+ * Der Zoom wird **im SVG** angewandt: PanZoom setzt imperativ ein `transform` auf die
+ * Zoom-Ebene (`<g data-zoom-layer>` in `Board.tsx`) — nicht per CSS auf einem Wrapper.
+ * Das ist der Unterschied zwischen scharf und pixelig: ein CSS-`transform` (zumal mit
+ * `will-change`) legt den Inhalt auf eine Compositor-Ebene, die einmal gerastert und
+ * danach als Textur skaliert wird → beim Zoomen weich, und beim späteren Neurastern
+ * springt der Text auf die Pixelkante. Ein SVG-`transform` ist dagegen Teil der
+ * Geometrie: der Browser zeichnet die Pfade bei jeder Zoomstufe neu.
+ *
+ * Die Geste rechnet in Bildschirm-Pixeln, das SVG in viewBox-Einheiten — `screenToSvg`
+ * rechnet einmal pro Frame über `getScreenCTM()` um (berücksichtigt auch das
+ * Letterboxing von `preserveAspectRatio`).
  *
  * Tap-to-Place bleibt erhalten: `preventDefault` passiert NUR bei echter Geste
  * (Pinch oder Pan über TAP_SLOP), nie bei einem sauberen Tap — dessen `click`
- * erreicht dann das SVG-Element und platziert wie gewohnt. Der Browser rechnet den
- * CSS-Transform beim Hit-Test mit, d. h. im gezoomten Zustand trifft man die Ecke,
+ * erreicht dann das SVG-Element und platziert wie gewohnt. Der Browser rechnet das
+ * SVG-Transform beim Hit-Test mit, d. h. im gezoomten Zustand trifft man die Ecke,
  * die visuell unter dem Finger liegt.
  */
 export function PanZoom({ children }: { children: ReactNode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const view = useRef({ scale: 1, tx: 0, ty: 0 });
+  const raf = useRef(0);
   const [zoomed, setZoomed] = useState(false);
 
   const g = useRef({
@@ -38,13 +47,58 @@ export function PanZoom({ children }: { children: ReactNode }) {
     focalCY: 0,
   });
 
-  const apply = (animate = false) => {
-    const el = contentRef.current;
-    if (!el) return;
+  /** Zoom-Ebene im SVG (dort wird transformiert, siehe Board.tsx). */
+  const layerOf = (): SVGGElement | null => contentRef.current?.querySelector('svg [data-zoom-layer]') ?? null;
+  const svgOf = (): SVGSVGElement | null => contentRef.current?.querySelector('svg') ?? null;
+
+  /**
+   * Setzt {scale,tx,ty} (Bildschirm-Pixel) als SVG-Transform auf die Zoom-Ebene.
+   * Herleitung: das SVG bildet Nutzer-Einheiten mit Faktor k und Ursprung o auf den
+   * Container ab (o enthält das Letterboxing von `preserveAspectRatio`). Gesucht ist
+   * das SVG-Transform, das visuell dasselbe tut wie ein CSS `translate(t) scale(s)`:
+   *   k·(s_svg·p + t_svg) + o  ==  s·(k·p + o) + t
+   * ⇒ s_svg = s  und  t_svg = ((s−1)·o + t) / k
+   */
+  const writeTransform = () => {
+    const layer = layerOf();
+    const svg = svgOf();
+    const c = containerRef.current;
+    if (!layer || !svg || !c) return;
+    const ctm = svg.getScreenCTM();
+    if (!ctm || !ctm.a) return;
+    const cr = c.getBoundingClientRect();
+    const k = ctm.a;
+    const ox = ctm.e - cr.left;
+    const oy = ctm.f - cr.top;
     const { scale, tx, ty } = view.current;
+    const sx = ((scale - 1) * ox + tx) / k;
+    const sy = ((scale - 1) * oy + ty) / k;
+    layer.setAttribute('transform', `translate(${sx} ${sy}) scale(${scale})`);
+  };
+
+  const apply = (animate = false) => {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    el.style.transition = animate && !reduce ? 'transform 0.25s ease' : 'none';
-    el.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    cancelAnimationFrame(raf.current);
+    if (!animate || reduce) {
+      writeTransform();
+      return;
+    }
+    // Reset weich: das SVG-`transform`-Attribut lässt sich nicht per CSS-Transition
+    // animieren (es ist kein CSS-Wert) → kurzer eigener Tween über rAF.
+    const from = { ...view.current };
+    const to = { scale: 1, tx: 0, ty: 0 };
+    const t0 = performance.now();
+    const D = 250;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / D);
+      const e = 1 - (1 - p) * (1 - p); // ease-out
+      view.current.scale = from.scale + (to.scale - from.scale) * e;
+      view.current.tx = from.tx + (to.tx - from.tx) * e;
+      view.current.ty = from.ty + (to.ty - from.ty) * e;
+      writeTransform();
+      if (p < 1) raf.current = requestAnimationFrame(step);
+    };
+    raf.current = requestAnimationFrame(step);
   };
 
   const clamp = () => {
@@ -66,9 +120,7 @@ export function PanZoom({ children }: { children: ReactNode }) {
   };
 
   const reset = () => {
-    view.current.scale = 1;
-    view.current.tx = 0;
-    view.current.ty = 0;
+    // Zielwerte NICHT vorher setzen — apply(true) tweent von hier nach 1/0/0.
     apply(true);
     setZoomed(false);
   };
@@ -182,6 +234,7 @@ export function PanZoom({ children }: { children: ReactNode }) {
     c.addEventListener('touchcancel', onEnd, { passive: false });
     c.addEventListener('wheel', onWheel, { passive: false });
     return () => {
+      cancelAnimationFrame(raf.current);
       c.removeEventListener('touchstart', onStart);
       c.removeEventListener('touchmove', onMove);
       c.removeEventListener('touchend', onEnd);

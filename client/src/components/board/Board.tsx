@@ -98,6 +98,11 @@ export const Board = memo(function Board(props: BoardProps) {
       preserveAspectRatio="xMidYMid meet"
     >
       <BoardDefs />
+      {/* Zoom-Ebene: PanZoom setzt hier imperativ ein SVG-`transform`. Bewusst INNERHALB
+          des SVG statt per CSS auf einem Wrapper — so ist der Zoom Teil der Geometrie und
+          der Browser zeichnet die Pfade bei jeder Stufe neu (scharf, kein Zwischen-Bitmap,
+          kein Nachrastern/Springen). Defs bleiben außerhalb, die werden nicht gezeichnet. */}
+      <g data-zoom-layer>
       <StaticLayer board={board} />
 
       {/* Straßen */}
@@ -193,6 +198,7 @@ export const Board = memo(function Board(props: BoardProps) {
           </g>
         );
       })}
+      </g>
     </svg>
   );
 });
