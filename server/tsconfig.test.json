@@ -1,0 +1,11 @@
+// Typecheck-Config: deckt src UND tests ab. `tsconfig.json` ist die Build-Config
+// und emittiert nur src/ nach dist/. Siehe shared/tsconfig.test.json.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["src", "tests"],
+  "exclude": ["dist", "node_modules"]
+}

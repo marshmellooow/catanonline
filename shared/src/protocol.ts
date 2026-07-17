@@ -72,6 +72,8 @@ export type ServerMsg =
 export const GRACE_MS = 180_000; // Reconnect-Frist bei Verbindungsverlust — großzügig, damit man nach einem Aussetzer zurückkommt, bevor ein Bot den Sitz übernimmt
 export const EMPTY_ROOM_TTL_MS = 240_000; // leere Räume (alle getrennt) erst nach dieser Zeit löschen — mehr Puffer für Reconnect bei schlechtem Netz
 export const BOT_MOVE_DELAY_MS = 700; // Bot-Zug-Verzögerung (spürbar, nicht hektisch)
+export const BOT_FAST_MOVE_DELAY_MS = 250; // unsichtbare Zwischenschritte: Antworten, Bankhandel, Zugende
+export const BOT_TRADE_TIMEOUT_MS = 15_000; // so lange wartet ein Bot-Angebot auf die Antwort eines Menschen; danach löst der Bot es selbst auf (sonst endet sein Zug nie, wenn niemand klickt)
 export const AUTO_ROLL_MS = 3_000; // Roll-Phase: nach dieser Zeit automatisch für den Spieler würfeln
 export const DEFAULT_TURN_SECONDS = 60; // Zug-Countdown-Standard (0 = aus)
 export const TURN_TIME_OPTIONS = [0, 30, 60, 90, 120] as const; // wählbar in der Lobby

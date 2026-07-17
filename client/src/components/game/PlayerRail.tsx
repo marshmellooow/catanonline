@@ -1,6 +1,6 @@
 import { useStore } from '../../store';
 import { PLAYER_COLORS } from '@catan/shared';
-import { Bot, Layers, ScrollText, Swords, Route, Trophy } from '../../icons';
+import { Bot, Layers, ScrollText, Swords, Route } from '../../icons';
 
 export function PlayerRail() {
   const game = useStore((s) => s.game);
@@ -38,9 +38,8 @@ export function PlayerRail() {
                 <div className="row gap-3 muted" style={{ fontSize: 12, marginTop: 3, flexWrap: 'wrap' }}>
                   <span className="stat" title="Handkarten"><Layers size={13} /> {p.resourceCount}</span>
                   <span className="stat" title="Entwicklungskarten"><ScrollText size={13} /> {p.devCardCount}</span>
-                  <span className="stat" title="Gespielte Ritter"><Swords size={13} /> {p.playedKnights}</span>
+                  <span className="stat" title={p.largestArmy ? 'Größte Rittermacht (Auszeichnung, +2 SP)' : 'Gespielte Ritter'} style={p.largestArmy ? { color: 'var(--gold)', fontWeight: 700 } : undefined}><Swords size={13} /> {p.playedKnights}</span>
                   <span className="stat" title={p.longestRoad ? 'Längste Straße (Auszeichnung, +2 SP)' : 'Längste eigene Straße'} style={p.longestRoad ? { color: 'var(--gold)', fontWeight: 700 } : undefined}><Route size={14} /> {p.roadLength}</span>
-                  {p.largestArmy && <span className="stat" title="Größte Rittermacht" style={{ color: 'var(--gold)' }}><Trophy size={14} /></span>}
                 </div>
               </div>
               <div className={`status-dot ${connDot}`} title={p.connected ? 'verbunden' : 'getrennt'} />

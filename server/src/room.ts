@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 import {
-  createGame, applyAction, toPublicState, redactEventsFor, chooseBotAction, getMap,
-  GRACE_MS, EMPTY_ROOM_TTL_MS, BOT_MOVE_DELAY_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS,
+  createGame, applyAction, toPublicState, redactEventsFor, chooseBotAction, resolveTimedOutTrade, fallbackAction, getMap,
+  GRACE_MS, EMPTY_ROOM_TTL_MS, BOT_MOVE_DELAY_MS, BOT_FAST_MOVE_DELAY_MS, BOT_TRADE_TIMEOUT_MS, AUTO_ROLL_MS, DEFAULT_TURN_SECONDS,
   type GameState, type GameAction, type GameEvent,
   type ServerMsg, type RoomState, type LobbyPlayer,
 } from '@catan/shared';
@@ -22,6 +22,23 @@ export interface RoomPlayer {
 }
 
 const OPEN = 1; // WebSocket.OPEN
+
+/** Sichtbare Spielzüge bleiben lesbar; rein administrative Zwischenschritte laufen flotter. */
+function botDelayFor(action: GameAction): number {
+  switch (action.type) {
+    case 'bankTrade':
+    case 'respondTrade':
+    case 'confirmTrade':
+    case 'acceptCounter':
+    case 'cancelTrade':
+    case 'discard':
+    case 'autoDiscard':
+    case 'endTurn':
+      return BOT_FAST_MOVE_DELAY_MS;
+    default:
+      return BOT_MOVE_DELAY_MS;
+  }
+}
 
 export interface RoomHooks {
   onEmpty(code: string): void;
@@ -51,6 +68,12 @@ export class Room {
   // Zug-Zeit) wird für säumige Menschen Karte für Karte zufällig abgeworfen.
   private discardTimer: ReturnType<typeof setTimeout> | null = null;
   private discardDeadline = 0; // epoch ms, gemeinsamer Ablaufzeitpunkt der Abwurf-Episode
+  // Frist für ein Angebot, das ein Bot einem Menschen gemacht hat. Ohne sie endet der
+  // Bot-Zug nie, wenn niemand antwortet: der Bot wartet (bot.ts), und armTurnTimer steigt
+  // bei Bot-Aktiven bewusst aus.
+  private tradeTimer: ReturnType<typeof setTimeout> | null = null;
+  private tradeDeadline = 0; // epoch ms
+  private tradeTimerOfferId: string | null = null; // für welches Angebot die Frist läuft
   private botSeq = 0; // monoton, damit Bot-Namen nie kollidieren
   private hooks: RoomHooks;
 
@@ -242,6 +265,7 @@ export class Room {
     this.clearRollTimer();
     this.clearTurnTimer();
     this.clearDiscardTimer();
+    this.clearTradeTimer();
     for (const p of this.players) if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
     this.hooks.onEmpty(this.code);
   }
@@ -402,6 +426,7 @@ export class Room {
     this.clearRollTimer();
     this.clearTurnTimer();
     this.clearDiscardTimer();
+    this.clearTradeTimer();
     this.turnTimerPlayerId = null;
     this.game = null;
     this.phase = 'lobby';
@@ -461,7 +486,16 @@ export class Room {
         if (this.isAuto(p) && g.tradeOffer.responses[p.id] === 'pending') return p;
       }
       const proposer = this.players.find((p) => p.id === g.tradeOffer!.from);
-      if (proposer && this.isAuto(proposer)) return proposer;
+      if (proposer && this.isAuto(proposer)) {
+        // Warten, solange ein echter Mitspieler noch antworten darf — sonst reißt der Bot
+        // ihm den Handelsdialog nach 700 ms wieder weg. Begrenzt von armTradeTimer.
+        //
+        // Hier `null` und NICHT durchfallen: der Anbieter IST der aktive Spieler (der
+        // Reducer lässt nur ihn anbieten). Ein Durchfallen auf den Aktiv-Zweig unten
+        // würde denselben Sitz zurückgeben und das Angebot doch wegräumen.
+        if (this.hasHumanPending(g.tradeOffer)) return null;
+        return proposer;
+      }
     }
     const active = this.players.find((p) => p.id === g.order[g.activeIndex]);
     if (active && this.isAuto(active)) return active;
@@ -469,19 +503,77 @@ export class Room {
   }
   private scheduleBotTick() {
     if (this.botTimer) return;
-    if (!this.findAutoActor()) return;
+    const actor = this.findAutoActor();
+    if (!actor || !this.game) return;
+    // Nur zur Verzögerungswahl vorplanen; im Tick selbst wird gegen den dann aktuellen
+    // State neu geplant. So kann eine menschliche Antwort während der Frist nichts veralten.
+    const next = chooseBotAction(this.game, actor.id);
+    if (!next) return;
     this.botTimer = setTimeout(() => {
       this.botTimer = null;
       this.botTick();
-    }, BOT_MOVE_DELAY_MS);
+    }, botDelayFor(next));
   }
 
-  /** Sammelaufruf nach jeder Zustandsänderung: Bots, Auto-Würfeln, Zug- und Abwurf-Countdown planen. */
+  /** Steht ein NICHT-Auto-Spieler (echter Mensch) noch auf 'pending'? */
+  private hasHumanPending(offer: { responses: Record<string, string> }): boolean {
+    return Object.keys(offer.responses).some((pid) => {
+      if (offer.responses[pid] !== 'pending') return false;
+      const p = this.findPlayer(pid);
+      return !!p && !this.isAuto(p);
+    });
+  }
+
+  /** Sammelaufruf nach jeder Zustandsänderung: Bots, Auto-Würfeln, Zug-, Abwurf- und Handels-Countdown planen. */
   private scheduleTimers() {
     this.scheduleBotTick();
     this.scheduleRollTimer();
     this.armTurnTimer();
     this.armDiscardTimer();
+    this.armTradeTimer();
+  }
+
+  private clearTradeTimer() {
+    if (this.tradeTimer) { clearTimeout(this.tradeTimer); this.tradeTimer = null; }
+    this.tradeDeadline = 0;
+    this.tradeTimerOfferId = null;
+  }
+
+  /** Ein Bot-Angebot wartet auf einen Menschen → nach BOT_TRADE_TIMEOUT_MS selbst auflösen.
+   *  Ohne das bliebe der Zug hängen, wenn niemand klickt (bot.ts wartet bewusst, und
+   *  armTurnTimer läuft für Bot-Aktive nicht). */
+  private armTradeTimer() {
+    const g = this.game;
+    if (!g || g.winner || this.phase !== 'playing' || !g.tradeOffer) { this.clearTradeTimer(); return; }
+    const proposer = this.findPlayer(g.tradeOffer.from);
+    if (!proposer || !this.isAuto(proposer)) { this.clearTradeTimer(); return; } // nur Bot-Angebote laufen ab
+    if (!this.hasHumanPending(g.tradeOffer)) { this.clearTradeTimer(); return; } // botTick löst ohnehin sofort auf
+    // Frist einmal je Angebot setzen — nicht bei jeder Antwort neu starten.
+    if (this.tradeTimerOfferId !== g.tradeOffer.id) {
+      if (this.tradeTimer) clearTimeout(this.tradeTimer);
+      this.tradeTimerOfferId = g.tradeOffer.id;
+      this.tradeDeadline = Date.now() + BOT_TRADE_TIMEOUT_MS;
+    } else if (this.tradeTimer) {
+      return; // Frist läuft bereits
+    }
+    const remaining = Math.max(0, this.tradeDeadline - Date.now());
+    this.tradeTimer = setTimeout(() => {
+      this.tradeTimer = null;
+      const gg = this.game;
+      if (!gg || gg.winner || !gg.tradeOffer || gg.tradeOffer.id !== this.tradeTimerOfferId) { this.clearTradeTimer(); return; }
+      const from = this.findPlayer(gg.tradeOffer.from);
+      if (!from || !this.isAuto(from)) { this.clearTradeTimer(); return; }
+      // Säumige Menschen zählen als Ablehnung. Eine bereits vorhandene gültige Annahme
+      // oder ein guter Konter wird trotzdem ausgeführt — der Timeout darf sie nicht löschen.
+      const action = resolveTimedOutTrade(gg, from.id) ?? { type: 'cancelTrade' as const };
+      let r = applyAction(gg, from.id, action);
+      if ('error' in r) {
+        console.warn(`[trade-timeout] Reducer lehnte ${action.type} ab (${r.error}) — Angebot wird abgebrochen.`);
+        r = applyAction(gg, from.id, { type: 'cancelTrade' });
+      }
+      this.clearTradeTimer();
+      if ('events' in r) this.afterGameMutation(r.events);
+    }, remaining);
   }
 
   /** Aktiver Zug-Spieler (falls vorhanden). */
@@ -558,7 +650,15 @@ export class Room {
 
     const action = chooseBotAction(g, playerId);
     if (action) {
-      const result = applyAction(g, playerId, action);
+      let result = applyAction(g, playerId, action);
+      if ('error' in result) {
+        // Netz gegen die 500-ms-Dauerschleife: derselbe State ergäbe dieselbe abgelehnte
+        // Aktion, der Zug dieses Menschen endete nie. Einmalig auf eine garantiert
+        // gültige Notaktion ausweichen statt neu zu planen.
+        console.warn(`[enforceTurn] Reducer lehnte ${action.type} ab (${result.error}) — Notaktion.`);
+        const fb = fallbackAction(g, playerId);
+        result = fb ? applyAction(g, playerId, fb) : result;
+      }
       if ('events' in result) {
         // afterGameMutation broadcastet UND plant Timer neu: bleibt es (überzogen) mein Zug,
         // setzt armTurnTimer sofort das nächste enforceTurn (remaining=0) → Zug wird zu Ende gespielt;
@@ -618,7 +718,15 @@ export class Room {
     if (!actor) return;
     const action = chooseBotAction(g, actor.id);
     if (action) {
-      const result = applyAction(g, actor.id, action);
+      let result = applyAction(g, actor.id, action);
+      if ('error' in result) {
+        // Netz gegen die 700-ms-Endlosschleife: scheduleTimers → scheduleBotTick würde
+        // denselben State neu planen → dieselbe abgelehnte Aktion → Partie tot. Einmalig
+        // auf eine garantiert gültige Notaktion ausweichen statt neu zu planen.
+        console.warn(`[bot] Reducer lehnte ${action.type} ab (${result.error}) — Notaktion.`);
+        const fb = fallbackAction(g, actor.id);
+        result = fb ? applyAction(g, actor.id, fb) : result;
+      }
       if ('events' in result) {
         if (g.winner) this.phase = 'finished';
         // Timer VOR dem Broadcast planen → turnRemainingMs zum neuen Zug sofort korrekt.

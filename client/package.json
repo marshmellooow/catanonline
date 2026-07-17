@@ -1,6 +1,6 @@
 {
   "name": "@catan/client",
-  "version": "3.7.2",
+  "version": "3.10.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

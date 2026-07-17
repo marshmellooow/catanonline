@@ -84,6 +84,7 @@ export function createGame(config: GameConfig): GameState {
     hasRolled: false,
     tradeOffer: null,
     tradeSeq: 0,
+    tradesProposedThisTurn: 0,
     longestRoadHolder: null,
     longestRoadLength: 0,
     largestArmyHolder: null,

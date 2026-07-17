@@ -354,7 +354,12 @@ describe('Sieg', () => {
 });
 
 describe('Robustheit: Bots blockieren nie', () => {
-  it('reiner Bot-Verlauf läuft 400 Aktionen fehlerfrei (inkl. 7er/Abwerfen/Räuber)', () => {
+  it('reiner Bot-Verlauf läuft fehlerfrei bis zum Sieg oder 400 Aktionen', () => {
+    // Geprüft wird die Abwesenheit von Deadlocks: in JEDER Phase liefert der Bot eine
+    // Aktion, und der Reducer akzeptiert sie. (Früher stand hier `expect(steps).toBe(400)`
+    // — das galt nur, solange der Bot in der Hauptphase ausschließlich passte und ein
+    // Spiel deshalb nie endete. Seit er baut, gewinnt er vorher; die Absicht des Tests
+    // ist aber „nie blockiert", nicht „läuft ewig".)
     const s = newGame(4);
     s.players.forEach((p) => (p.isBot = true));
     driveSetup(s);
@@ -368,7 +373,7 @@ describe('Robustheit: Bots blockieren nie', () => {
       const r = applyAction(s, actor, a);
       if ('error' in r) throw new Error(`Bot-Fehler in Phase ${s.phase}: ${r.error}`);
     }
-    expect(steps).toBe(400); // nie blockiert, kein Deadlock
+    expect(s.winner !== null || steps === 400).toBe(true);
     expect(s.turnCount).toBeGreaterThan(10);
   });
 });

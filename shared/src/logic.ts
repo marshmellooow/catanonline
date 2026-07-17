@@ -1,7 +1,7 @@
 // Reine Spiellogik-Helfer: Kosten, Bauregeln, Ertrag, Längste Straße,
 // Häfen, Siegpunkte. Keine Seiteneffekte außer explizit dokumentiert.
 
-import type { GameState, ResourceCounts, PlayerState } from './types.js';
+import type { GameState, ResourceCounts, PlayerState, VpBreakdown } from './types.js';
 import type { ResourceType } from './design.js';
 import { TERRAIN_RESOURCE, RESOURCES } from './design.js';
 import type { PortType } from './maps.js';
@@ -73,8 +73,10 @@ export function canPlaceSettlement(state: GameState, corner: number, p: string, 
   return c.edges.some((eid) => state.roads[eid]?.owner === p);
 }
 
-/** Verbindet diese Ecke Straßen von p (für Straßenbau)? */
-function cornerConnectsRoad(state: GameState, corner: number, p: string): boolean {
+/** Verbindet diese Ecke Straßen von p (für Straßenbau)? Exportiert, weil die
+ *  Bot-Bewertung (`bot-eval.ts`) denselben Begriff für ihre Straßen-BFS braucht —
+ *  eine eigene Kopie dort würde von `canPlaceRoad` abdriften. */
+export function cornerConnectsRoad(state: GameState, corner: number, p: string): boolean {
   if (occupiedByOpponent(state, corner, p)) return false;
   const c = state.board.corners[corner];
   if (state.buildings[corner]?.owner === p) return true;
@@ -286,14 +288,31 @@ export function countBuildings(state: GameState, p: string): { settlements: numb
   return { settlements, cities };
 }
 
+/**
+ * Woraus sich die Siegpunkte zusammensetzen — die einzige Quelle der Wahrheit;
+ * `victoryPoints` ist nur die Summe daraus.
+ *
+ * `includeHidden`: verdeckte SP-Karten mitzählen. Nur für den Besitzer selbst, für die
+ * Sieg-Prüfung — und nach Spielende für alle (dann ist nichts mehr geheim, siehe `view.ts`).
+ */
+export function victoryPointBreakdown(state: GameState, player: PlayerState, includeHidden: boolean): VpBreakdown {
+  const { settlements, cities } = countBuildings(state, player.id);
+  const longestRoad = state.longestRoadHolder === player.id;
+  const largestArmy = state.largestArmyHolder === player.id;
+  const hidden = includeHidden ? player.devCards.victoryPoint + player.newDevCards.victoryPoint : 0;
+  return {
+    settlements,
+    cities,
+    longestRoad,
+    largestArmy,
+    hidden,
+    total: settlements + cities * 2 + (longestRoad ? 2 : 0) + (largestArmy ? 2 : 0) + hidden,
+  };
+}
+
 /** Siegpunkte. includeHidden: verdeckte SP-Karten mitzählen (nur für Besitzer/Sieg). */
 export function victoryPoints(state: GameState, player: PlayerState, includeHidden: boolean): number {
-  const { settlements, cities } = countBuildings(state, player.id);
-  let vp = settlements + cities * 2;
-  if (state.longestRoadHolder === player.id) vp += 2;
-  if (state.largestArmyHolder === player.id) vp += 2;
-  if (includeHidden) vp += player.devCards.victoryPoint + player.newDevCards.victoryPoint;
-  return vp;
+  return victoryPointBreakdown(state, player, includeHidden).total;
 }
 
 export function checkWin(state: GameState, player: PlayerState): boolean {

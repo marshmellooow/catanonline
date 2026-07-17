@@ -2,7 +2,7 @@
 // Eigene Hand & eigene (verdeckte) Karten voll; von Gegnern nur Anzahlen.
 
 import type { GameState, GameEvent, PublicState, PublicPlayer } from './types.js';
-import { resourceTotal, victoryPoints, playerPorts, computeLongestRoad } from './logic.js';
+import { resourceTotal, victoryPointBreakdown, playerPorts, computeLongestRoad } from './logic.js';
 
 function devCardTotal(counts: Record<string, number>): number {
   return Object.values(counts).reduce((s, n) => s + n, 0);
@@ -27,8 +27,14 @@ export function redactEventsFor(events: GameEvent[], viewerId: string): GameEven
 }
 
 export function toPublicState(state: GameState, viewerId: string): PublicState {
+  // Nach Spielende ist nichts mehr geheim → verdeckte SP-Karten ALLER Spieler aufdecken.
+  // Vorher zählten sie nur für einen selbst, sodass das Sieger-Overlay den Gewinner bei
+  // allen anderen mit weniger Punkten als dem Ziel anzeigte (er hatte ja verdeckte Karten).
+  const revealed = state.winner !== null;
   const players: PublicPlayer[] = state.players.map((p) => {
     const isYou = p.id === viewerId;
+    const showHidden = isYou || revealed;
+    const breakdown = victoryPointBreakdown(state, p, showHidden);
     const pub: PublicPlayer = {
       id: p.id,
       name: p.name,
@@ -38,7 +44,7 @@ export function toPublicState(state: GameState, viewerId: string): PublicState {
       resourceCount: resourceTotal(p.resources),
       devCardCount: devCardTotal(p.devCards) + devCardTotal(p.newDevCards),
       playedKnights: p.playedKnights,
-      victoryPoints: victoryPoints(state, p, isYou), // eigene inkl. verdeckter SP-Karten
+      victoryPoints: breakdown.total, // eigene inkl. verdeckter SP-Karten; nach Spielende alle
       settlementsLeft: p.settlementsLeft,
       citiesLeft: p.citiesLeft,
       roadsLeft: p.roadsLeft,
@@ -47,6 +53,9 @@ export function toPublicState(state: GameState, viewerId: string): PublicState {
       largestArmy: state.largestArmyHolder === p.id,
       ports: playerPorts(state, p.id),
     };
+    // Aufschlüsselung nur, wenn auch die verdeckten Karten offengelegt sind (eigene, oder
+    // nach Spielende alle) — sonst würde `hidden` fremde SP-Karten verraten.
+    if (showHidden) pub.vpBreakdown = breakdown;
     if (isYou) {
       pub.resources = { ...p.resources };
       pub.devCards = { ...p.devCards };

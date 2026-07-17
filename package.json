@@ -1,7 +1,7 @@
 {
   "name": "catan-online",
   "private": true,
-  "version": "3.7.2",
+  "version": "3.10.0",
   "type": "module",
   "workspaces": [
     "shared",
@@ -13,7 +13,7 @@
     "build": "npm -w @catan/shared run build && npm -w @catan/client run build && npm -w @catan/server run build",
     "start": "npm -w @catan/server run start",
     "test": "npm -w @catan/shared run test && npm -w @catan/server run test",
-    "typecheck": "npm -w @catan/shared exec tsc -- --noEmit && npm -w @catan/server exec tsc -- --noEmit && npm -w @catan/client exec tsc -- --noEmit",
+    "typecheck": "npm -w @catan/shared exec tsc -- -p tsconfig.test.json && npm -w @catan/server exec tsc -- -p tsconfig.test.json && npm -w @catan/client exec tsc -- --noEmit",
     "gate": "npm run test && npm run typecheck && npm run build",
     "version:print": "node scripts/bump-version.mjs --print",
     "bump": "node scripts/bump-version.mjs",

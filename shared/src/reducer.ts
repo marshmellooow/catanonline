@@ -427,6 +427,7 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       // Zug ergab früher dieselbe Id, sodass eine verspätete Antwort/ein Gegenangebot
       // zum ALTEN Angebot das neue getroffen hätte.
       const offer: TradeOffer = { id: `t${state.tradeSeq++}`, from: playerId, give, get, responses, counters: {} };
+      state.tradesProposedThisTurn++;
       state.tradeOffer = offer;
       return { events: out };
     }
@@ -599,6 +600,7 @@ function endTurn(state: GameState, out: GameEvent[]): void {
   state.hasRolled = false;
   state.dice = null;
   state.tradeOffer = null;
+  state.tradesProposedThisTurn = 0;
   state.mustDiscard = {};
   state.stealCandidates = [];
   state.roadBuildingLeft = 0;

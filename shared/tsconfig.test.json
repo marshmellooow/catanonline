@@ -1,0 +1,14 @@
+// Typecheck-Config: deckt src UND tests ab. `tsconfig.json` ist die Build-Config
+// und lässt die Tests bewusst draußen (sie gehören nicht ins dist/).
+// Ohne diese Datei liefen Tests ungeprüft — ein `h.terrain = 'A'` (kein gültiger
+// TerrainCode) fiel niemandem auf und der Test prüfte still etwas anderes.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "rootDir": "."
+  },
+  "include": ["src", "tests"],
+  "exclude": ["dist", "node_modules"]
+}

@@ -188,6 +188,11 @@ export interface GameState {
    *  eine verspätete Antwort/ein Gegenangebot zu Angebot A ein späteres
    *  Angebot B trifft (propose→cancel→propose ergab sonst dieselbe Id). */
   tradeSeq: number;
+  /** Angebote, die der aktive Spieler in DIESEM Zug gemacht hat (Reset in `endTurn`).
+   *  Der Bot braucht das als Budget: `tradeSeq` steigt monoton und `propose→cancel`
+   *  stellt sonst exakt den Ausgangszustand wieder her → der Bot böte endlos neu an.
+   *  Bewusst NICHT in `PublicState` — reine Server-/Bot-Buchführung. */
+  tradesProposedThisTurn: number;
 
   // Auszeichnungen
   longestRoadHolder: string | null;
@@ -204,6 +209,16 @@ export interface GameState {
 }
 
 // ---------- Öffentliche (redigierte) Sicht für einen Spieler ----------
+
+/** Woraus sich die Siegpunkte eines Spielers zusammensetzen (siehe `victoryPointBreakdown`). */
+export interface VpBreakdown {
+  settlements: number; // Anzahl Siedlungen (je 1 SP)
+  cities: number; // Anzahl Städte (je 2 SP)
+  longestRoad: boolean; // Längste Straße (+2 SP)
+  largestArmy: boolean; // Größte Rittermacht (+2 SP)
+  hidden: number; // verdeckte SP-Karten (je 1 SP)
+  total: number;
+}
 
 export interface PublicPlayer {
   id: string;
@@ -223,6 +238,10 @@ export interface PublicPlayer {
   roadLength: number; // Länge der längsten zusammenhängenden Straße dieses Spielers
   largestArmy: boolean;
   ports: PortType[];
+  /** Aufschlüsselung der Siegpunkte. Nur für den Betrachter selbst — und nach Spielende
+   *  für ALLE (dann ist nichts mehr geheim). Fehlt sonst, damit verdeckte SP-Karten
+   *  fremder Spieler nicht über die Leitung gehen. */
+  vpBreakdown?: VpBreakdown;
   // nur eigene:
   devCards?: DevCardCounts;
   newDevCards?: DevCardCounts;

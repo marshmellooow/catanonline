@@ -804,6 +804,61 @@
   margin-top: 0;
 }
 
+/* Sieger-Overlay: Siegpunkt-Aufschlüsselung je Spieler (ausklappbar) */
+.vp-hint {
+  font-size: 12px;
+  margin: 2px 0 0;
+  opacity: 0.7;
+}
+.vp-result {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.vp-result-head {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.vp-result-head:disabled {
+  cursor: default;
+}
+.vp-result-head:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.vp-chevron {
+  transition: transform 0.15s ease;
+  opacity: 0.7;
+}
+.vp-chevron.open {
+  transform: rotate(180deg);
+}
+.vp-breakdown {
+  padding: 2px 12px 10px 34px;
+  gap: 3px;
+}
+.vp-line {
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+.vp-line .num {
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vp-chevron {
+    transition: none;
+  }
+}
+
 .trade-give-get {
   display: grid;
   grid-template-columns: 1fr 1fr;

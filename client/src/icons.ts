@@ -33,4 +33,8 @@ export {
   Timer, // Zug-Countdown
   Info, // Info & Regeln
   AlertTriangle, // Warnung: mehr als 7 Karten (Abwurf-Gefahr bei 7)
+  ChevronDown, // Aufklappen (Siegpunkt-Aufschlüsselung)
+  Home, // Siedlung (Siegpunkt-Aufschlüsselung)
+  Building2, // Stadt (Siegpunkt-Aufschlüsselung)
+  EyeOff, // verdeckte Siegpunktkarte
 } from 'lucide-react';

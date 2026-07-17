@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Room } from '../src/room.js';
-import { GRACE_MS, EMPTY_ROOM_TTL_MS, AUTO_ROLL_MS, BOT_MOVE_DELAY_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
+import { GRACE_MS, EMPTY_ROOM_TTL_MS, AUTO_ROLL_MS, BOT_MOVE_DELAY_MS, BOT_FAST_MOVE_DELAY_MS, BOT_TRADE_TIMEOUT_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
 
 // Stub-Socket: readyState OPEN(1), send no-op — Broadcasts crashen nicht.
 const sock = () => ({ readyState: 1, send() {} }) as never;
@@ -323,6 +323,147 @@ describe('Abwurf-Countdown (Auto-Abwerfen nach einer 7)', () => {
       vi.advanceTimersByTime(10_000 + 500);
       expect(g.mustDiscard[pid]).toBeUndefined(); // automatisch abgeworfen statt Dauer-Stall
       expect(handTotal(p.resources)).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('Bot-Angebote an Menschen', () => {
+  /** p1 = per Sitzübernahme bot-gesteuert (auto) und am Zug; p0/p2 = verbundene Menschen. */
+  function botProposerGame() {
+    const { room, players } = startedGame(3);
+    driveSetup(room);
+    // replaceWithBot greift nur bei GETRENNTEN Sitzen — removePlayer mitten im Spiel
+    // lässt den Sitz stehen und setzt auto = true (der reguläre Übernahme-Pfad).
+    room.removePlayer(players[1].id);
+    expect(room.findPlayer(players[1].id)!.auto).toBe(true);
+    const g = room.game!;
+    g.phase = 'main';
+    g.hasRolled = true;
+    g.activeIndex = g.order.indexOf(players[1].id);
+    for (const p of g.players) p.resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
+    return { room, players, g, bot: players[1].id };
+  }
+
+  it('administratives Zugende nutzt den schnellen Bot-Takt', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, g, bot } = botProposerGame();
+      const intern = room as unknown as {
+        botTimer: ReturnType<typeof setTimeout> | null;
+        scheduleTimers(): void;
+      };
+      if (intern.botTimer) clearTimeout(intern.botTimer);
+      intern.botTimer = null;
+      intern.scheduleTimers();
+      expect(g.order[g.activeIndex]).toBe(bot);
+      vi.advanceTimersByTime(BOT_FAST_MOVE_DELAY_MS - 1);
+      expect(g.order[g.activeIndex]).toBe(bot);
+      vi.advanceTimersByTime(2);
+      expect(g.order[g.activeIndex]).not.toBe(bot);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('findAutoActor liefert den Anbieter NICHT, solange ein Mensch noch antworten darf', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players, g, bot } = botProposerGame();
+      g.players.find((p) => p.id === bot)!.resources.ore = 1;
+      g.players.find((p) => p.id === players[0].id)!.resources.wool = 1;
+      room.handleAction(bot, { type: 'proposeTrade', give: { ore: 1 }, get: { wool: 1 } });
+      expect(g.tradeOffer).not.toBeNull();
+      // Ein Bot-Tick darf das Angebot NICHT wegräumen — die Menschen sind noch dran.
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS + 300);
+      expect(g.tradeOffer, 'Angebot wurde dem Menschen weggerissen').not.toBeNull();
+      expect(g.tradeOffer!.responses[players[0].id]).toBe('pending');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ein unbeantwortetes Bot-Angebot läuft nach BOT_TRADE_TIMEOUT_MS ab — der Zug endet', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players, g, bot } = botProposerGame();
+      g.players.find((p) => p.id === bot)!.resources.ore = 1;
+      g.players.find((p) => p.id === players[0].id)!.resources.wool = 1;
+      room.handleAction(bot, { type: 'proposeTrade', give: { ore: 1 }, get: { wool: 1 } });
+      expect(g.tradeOffer).not.toBeNull();
+      // Niemand klickt. Ohne Frist bliebe der Bot-Zug für immer hängen: bot.ts wartet
+      // bewusst, und armTurnTimer läuft für Bot-Aktive nicht.
+      vi.advanceTimersByTime(BOT_TRADE_TIMEOUT_MS + 500);
+      expect(g.tradeOffer).toBeNull();
+      // Danach läuft der Bot normal weiter und beendet seinen Zug.
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS * 6);
+      expect(g.order[g.activeIndex]).not.toBe(bot);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Timeout führt eine vorhandene Annahme aus, obwohl ein anderer Mensch säumig ist', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players, g, bot } = botProposerGame();
+      g.players.find((p) => p.id === bot)!.resources.ore = 1;
+      g.players.find((p) => p.id === players[0].id)!.resources.wool = 1;
+      room.handleAction(bot, { type: 'proposeTrade', give: { ore: 1 }, get: { wool: 1 } });
+      const offerId = g.tradeOffer!.id;
+      room.handleAction(players[0].id, { type: 'respondTrade', offerId, accept: true });
+      expect(g.tradeOffer!.responses[players[2].id]).toBe('pending');
+      vi.advanceTimersByTime(BOT_TRADE_TIMEOUT_MS + 100);
+      expect(g.tradeOffer).toBeNull();
+      expect(g.players.find((p) => p.id === bot)!.resources.wool).toBe(1);
+      expect(g.players.find((p) => p.id === players[0].id)!.resources.ore).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('antwortet der Mensch, löst der Bot sofort auf — ohne auf die Frist zu warten', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players, g, bot } = botProposerGame();
+      g.players.find((p) => p.id === bot)!.resources.ore = 1;
+      g.players.find((p) => p.id === players[0].id)!.resources.wool = 1;
+      room.handleAction(bot, { type: 'proposeTrade', give: { ore: 1 }, get: { wool: 1 } });
+      const offerId = g.tradeOffer!.id;
+      room.handleAction(players[0].id, { type: 'respondTrade', offerId, accept: true });
+      room.handleAction(players[2].id, { type: 'respondTrade', offerId, accept: false });
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS + 300); // ein Tick genügt — keine 15 s
+      expect(g.tradeOffer).toBeNull();
+      expect(g.players.find((p) => p.id === bot)!.resources.wool).toBe(1); // Tausch ausgeführt
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Tisch mit 3 Bots + untätigem Menschen spielt bis zum Sieg durch', () => {
+    // Deckt beides ab: der Bot-Tick treibt die Bot-Sitze, und der Zug des untätigen
+    // MENSCHEN wird nach Ablauf der Zugzeit von enforceTurn voll ausgespielt.
+    // (Den Menschen zu entfernen ginge nicht: ohne verbundenen Menschen gilt der Raum
+    // als leer und wird nach EMPTY_ROOM_TTL_MS abgeräumt — der Tick stirbt mit.)
+    vi.useFakeTimers();
+    try {
+      const { room, players } = lobby(1);
+      for (let i = 0; i < 3; i++) room.addBot(players[0].id); // braucht echtes Math.random für die Bot-Ids
+      room.setReady(players[0].id, true);
+      // startGame würfelt den Seed aus `Date.now() ^ Math.random()` — ohne festen Wert
+      // wäre dieser Test von Lauf zu Lauf ein anderes Brett und damit flaky. Date.now()
+      // steht unter Fake-Timern still, Math.random pinnen wir nur für diesen Aufruf.
+      const rnd = vi.spyOn(Math, 'random').mockReturnValue(0.4242);
+      expect(room.startGame(players[0].id)).toBeNull();
+      rnd.mockRestore();
+      driveSetup(room); // Setup hat bewusst keinen Countdown → hier direkt durchspielen
+      expect(room.game!.phase).not.toBe('setupSettlement');
+      for (let i = 0; i < 20_000 && room.phase === 'playing'; i++) {
+        vi.advanceTimersByTime(1000);
+      }
+      expect(room.phase).toBe('finished');
+      expect(room.game!.winner).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }

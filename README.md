@@ -23,6 +23,7 @@ Weitere Skripte:
 
 ```bash
 npm test          # Unit-Tests der Spiellogik (shared)
+npm run gate      # alle Tests + Typecheck aller Pakete + Produktions-Build
 npm run build     # Produktions-Build aller Pakete
 npm start         # nur den Server starten (nach build)
 ```
@@ -53,18 +54,19 @@ client/   Vite + React + TS. SVG-Board (statische Ebene memoisiert), Lobby,
 - **Lobby:** 6-stelliger Code (keine mehrdeutigen Zeichen), Farbwahl, Bereit-Status,
   Host-Krone, Kartenauswahl (5 feste Maps + Zufallskarte) mit Live-Board-Vorschau,
   Siegpunkte-Ziel, **Bank-Größe pro Rohstoff**, Kick.
-- **Solo/Bots:** Host kann Bot-Sitze hinzufügen und so **allein gegen Bots** testen;
-  Bots werden vom Server automatisch gesteuert.
+- **Solo/Bots:** Host kann Bot-Sitze hinzufügen und **allein gegen Bots** spielen.
+  Bots wählen ihre Startpositionen, würfeln, bauen, handeln, spielen
+  Entwicklungskarten, versetzen den Räuber und verfolgen eigenständig Bauziele.
 - **Bank:** endlicher Kartenpool je Rohstoff (in der Lobby einstellbar, Standard 19),
   im Spiel sichtbar. Ist die Bank leer, bekommt bei der Ausschüttung niemand diesen
   Rohstoff (fordern mehrere und es reicht nicht → niemand; fordert genau einer → Rest).
 - **Reconnect:** dauerhafte `sessionId` in `localStorage`; bei Reload/Netzverlust
   verbindet der Client automatisch neu (Exponential-Backoff) und wird auf seinen
   Sitz mit voller Hand zurückgesetzt.
-- **Versehentliches Verlassen:** Sitz bleibt reserviert, Grace-Frist (90 s). Ist
-  der Getrennte am Zug, pausiert das Spiel sichtbar; nach Ablauf übernimmt ein
-  einfacher **Bot** (würfelt, beendet Züge, wirft ab, versetzt den Räuber), damit
-  niemand blockiert. Host kann getrennte Spieler sofort durch einen Bot ersetzen.
+- **Versehentliches Verlassen:** Sitz bleibt reserviert, Grace-Frist (180 s). Ist
+  der Getrennte am Zug, pausiert das Spiel sichtbar; nach Ablauf übernimmt die
+  vollständige **Bot-Logik** den Sitz, damit niemand blockiert. Host kann getrennte
+  Spieler sofort durch einen Bot ersetzen.
 - **Host-Migration:** verlässt der Host, wandert die Rolle automatisch weiter.
   Leere Räume werden aufgeräumt.
 

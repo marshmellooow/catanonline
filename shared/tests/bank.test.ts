@@ -4,6 +4,7 @@ import type { GameState } from '../src/types.js';
 import { produceResources } from '../src/logic.js';
 import { applyAction } from '../src/reducer.js';
 import { chooseBotAction } from '../src/bot.js';
+import { nextAutoActor } from './helpers/drive.js';
 import { TERRAIN_RESOURCE, RESOURCES } from '../src/design.js';
 
 function newGame(bankSize?: number, players = 3): GameState {
@@ -87,7 +88,11 @@ describe('Kartenerhaltung', () => {
       expect(total()).toBe(EXPECT);
     }
     for (let i = 0; i < 400 && !s.winner; i++) {
-      const actor = s.phase === 'discard' ? Object.keys(s.mustDiscard)[0] : s.order[s.activeIndex];
+      // nextAutoActor statt order[activeIndex]: seit der Bot selbst Handel anbietet, wäre
+      // „immer der Aktive" falsch — der Anbieter löste sein Angebot auf, bevor jemand
+      // geantwortet hat, und der Handelspfad bliebe ungetestet.
+      const actor = nextAutoActor(s);
+      if (!actor) throw new Error('Kein Akteur in ' + s.phase);
       const a = chooseBotAction(s, actor);
       if (!a) throw new Error('Bot stecken geblieben in ' + s.phase);
       const r = applyAction(s, actor, a);
