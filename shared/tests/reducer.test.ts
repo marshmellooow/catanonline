@@ -133,6 +133,96 @@ describe('Hafenhandel (Siedlung auf Hafen-Ecke senkt den Bankkurs)', () => {
   });
 });
 
+describe('Gegenangebot (counterTrade / acceptCounter)', () => {
+  /** Spiel im Bauzug mit laufendem Angebot p0 → (p1,p2): p0 gibt 2 Holz, will 1 Erz. */
+  function withOffer(): GameState {
+    const s = newGame(3);
+    driveSetup(s);
+    s.phase = 'main';
+    s.hasRolled = true;
+    s.players[0].resources = { wood: 2, brick: 0, wool: 0, grain: 0, ore: 0 };
+    s.players[1].resources = { wood: 0, brick: 0, wool: 3, grain: 0, ore: 1 };
+    s.players[2].resources = { wood: 0, brick: 0, wool: 0, grain: 0, ore: 1 };
+    ok(applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: { ore: 1 } }));
+    return s;
+  }
+  const total = (s: GameState) =>
+    RESOURCES.reduce((sum, r) => sum + s.bank[r] + s.players.reduce((a, p) => a + p.resources[r], 0), 0);
+
+  it('Konter speichert in Anbieter-Perspektive, setzt Status und lässt andere Empfänger unberührt', () => {
+    const s = withOffer();
+    // p1 kontert: „ich gebe 2 Wolle, will 2 Holz" (aus p1s Sicht)
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 2 }, get: { wood: 2 } }));
+    expect(s.tradeOffer!.responses['p1']).toBe('counter');
+    // gespeichert aus Sicht von p0: p0 gibt Holz, p0 bekommt Wolle
+    expect(s.tradeOffer!.counters['p1']).toEqual({ give: { wood: 2, brick: 0, wool: 0, grain: 0, ore: 0 }, get: { wood: 0, brick: 0, wool: 2, grain: 0, ore: 0 } });
+    expect(s.tradeOffer!.responses['p2']).toBe('pending'); // andere unberührt
+  });
+
+  it('acceptCounter tauscht die KONTER-Mengen (nicht die Original-Mengen), Karten bleiben erhalten', () => {
+    const s = withOffer();
+    const before = total(s);
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 2 }, get: { wood: 2 } }));
+    ok(applyAction(s, 'p0', { type: 'acceptCounter', offerId: s.tradeOffer!.id, withPlayer: 'p1' }));
+    expect(s.players[0].resources).toEqual({ wood: 0, brick: 0, wool: 2, grain: 0, ore: 0 }); // gab 2 Holz, bekam 2 Wolle
+    expect(s.players[1].resources).toEqual({ wood: 2, brick: 0, wool: 1, grain: 0, ore: 1 }); // gab 2 Wolle, bekam 2 Holz
+    expect(s.players[0].resources.ore).toBe(0); // NICHT das Originalangebot (1 Erz)
+    expect(s.tradeOffer).toBeNull();
+    expect(total(s)).toBe(before); // Kartenerhaltung
+  });
+
+  it('erneutes Kontern überschreibt; respondTrade löscht den Konter (kein Geisterangebot)', () => {
+    const s = withOffer();
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 2 }, get: { wood: 2 } }));
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 1 }, get: { wood: 1 } }));
+    expect(s.tradeOffer!.counters['p1'].get.wool).toBe(1); // überschrieben, nicht dupliziert
+    // Zurückziehen via Ablehnen → Konter weg, acceptCounter scheitert
+    ok(applyAction(s, 'p1', { type: 'respondTrade', offerId: s.tradeOffer!.id, accept: false }));
+    expect(s.tradeOffer!.counters['p1']).toBeUndefined();
+    expect(s.tradeOffer!.responses['p1']).toBe('reject');
+    err(applyAction(s, 'p0', { type: 'acceptCounter', offerId: s.tradeOffer!.id, withPlayer: 'p1' }));
+  });
+
+  it('Konter darf Karten fordern, die der Anbieter nicht hat (kein Hand-Orakel)', () => {
+    const s = withOffer();
+    // p0 hat kein Erz — der Konter muss trotzdem angenommen WERDEN DÜRFEN (erst beim
+    // Annehmen scheitert es), sonst verrät die Fehlermeldung die fremde Hand.
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 1 }, get: { ore: 5 } }));
+    expect(s.tradeOffer!.responses['p1']).toBe('counter');
+    err(applyAction(s, 'p0', { type: 'acceptCounter', offerId: s.tradeOffer!.id, withPlayer: 'p1' }));
+    expect(s.tradeOffer).not.toBeNull(); // Angebot bleibt bestehen
+  });
+
+  it('Hand ändert sich zwischen Konter und Annahme (Monopol) → kein negativer Bestand', () => {
+    const s = withOffer();
+    const before = total(s);
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 2 }, get: { wood: 2 } }));
+    // p0 zieht per Monopol alle Wolle ein → p1 kann seinen Konter nicht mehr bedienen
+    s.players[0].devCards.monopoly = 1;
+    s.playedDevThisTurn = false;
+    ok(applyAction(s, 'p0', { type: 'playMonopoly', resource: 'wool' }));
+    err(applyAction(s, 'p0', { type: 'acceptCounter', offerId: s.tradeOffer!.id, withPlayer: 'p1' }));
+    for (const p of s.players) for (const r of RESOURCES) expect(p.resources[r]).toBeGreaterThanOrEqual(0);
+    expect(total(s)).toBe(before);
+  });
+
+  it('endTurn räumt offene Gegenangebote mit ab', () => {
+    const s = withOffer();
+    ok(applyAction(s, 'p1', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 2 }, get: { wood: 2 } }));
+    ok(applyAction(s, 'p0', { type: 'endTurn' }));
+    expect(s.tradeOffer).toBeNull();
+  });
+
+  it('Angebots-Id ist eindeutig — Konter zu einem abgebrochenen Angebot trifft nicht das neue', () => {
+    const s = withOffer();
+    const oldId = s.tradeOffer!.id;
+    ok(applyAction(s, 'p0', { type: 'cancelTrade' }));
+    ok(applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: { ore: 1 } }));
+    expect(s.tradeOffer!.id).not.toBe(oldId);
+    err(applyAction(s, 'p1', { type: 'counterTrade', offerId: oldId, give: { wool: 2 }, get: { wood: 2 } }));
+  });
+});
+
 describe('Spielerhandel mit Bestätigungs-Flow', () => {
   it('Angebot → Antwort → Bestätigung tauscht Karten', () => {
     const s = newGame(3);

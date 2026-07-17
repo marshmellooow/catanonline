@@ -9,12 +9,30 @@ function emptyCounts(): Record<ResourceType, number> {
   return { wood: 0, brick: 0, wool: 0, grain: 0, ore: 0 };
 }
 
-export function TradeDialog({ onClose }: { onClose: () => void }) {
+/** Handels-Editor. Zwei Modi:
+ *  - 'propose' (Standard): der aktive Spieler schlägt einen Handel vor (inkl. Bank-Tausch).
+ *  - 'counter': ein Empfänger schickt ein Gegenangebot zurück. `give`/`get` bleiben
+ *    aus SEINER Sicht („Du gibst / Du bekommst") — der Reducer dreht die Perspektive.
+ *    Kein Bank-Tausch (nur für den aktiven Spieler sinnvoll), kein activePlayer-Check. */
+export function TradeDialog({
+  onClose,
+  mode = 'propose',
+  offerId,
+  initialGive,
+  initialGet,
+}: {
+  onClose: () => void;
+  mode?: 'propose' | 'counter';
+  offerId?: string;
+  initialGive?: Record<ResourceType, number>;
+  initialGet?: Record<ResourceType, number>;
+}) {
   const game = useStore((s) => s.game);
   const me = useStore((s) => s.playerId);
   const act = useStore((s) => s.act);
-  const [give, setGive] = useState(emptyCounts());
-  const [get, setGet] = useState(emptyCounts());
+  const [give, setGive] = useState(initialGive ?? emptyCounts());
+  const [get, setGet] = useState(initialGet ?? emptyCounts());
+  const isCounter = mode === 'counter';
 
   if (!game || !me) return null;
   const you = game.players.find((p) => p.id === me)!;
@@ -35,13 +53,14 @@ export function TradeDialog({ onClose }: { onClose: () => void }) {
     giveTypes.length === 1 && getTypes.length === 1 && get[getTypes[0]] === 1 && give[giveTypes[0]] === bestBankRate(ports, giveTypes[0]);
   const bankRate = giveTypes.length === 1 ? bestBankRate(ports, giveTypes[0]) : 4;
 
-  const canOffer = totalGive > 0 && totalGet > 0 && game.activePlayer === me;
+  // Im Gegenangebot-Modus ist man bewusst NICHT der aktive Spieler.
+  const canOffer = totalGive > 0 && totalGet > 0 && (isCounter || game.activePlayer === me);
 
   return (
     <div className="modal-scrim" onClick={onClose}>
       <div className="dialog modal-card wide" onClick={(e) => e.stopPropagation()}>
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0 }}>Handel vorschlagen</h2>
+          <h2 style={{ margin: 0 }}>{isCounter ? 'Gegenangebot' : 'Handel vorschlagen'}</h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}><X size={16} /></button>
         </div>
 
@@ -88,21 +107,33 @@ export function TradeDialog({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="row gap-2" style={{ marginTop: 16, flexWrap: 'wrap' }}>
-          <button className="btn btn-gold" disabled={!canOffer} onClick={() => { act({ type: 'proposeTrade', give, get }); onClose(); }}>
-            Spielern anbieten
-          </button>
           <button
-            className="btn btn-outline"
-            disabled={!bankPossible}
-            title={`Kurs ${bankRate}:1`}
-            onClick={() => { act({ type: 'bankTrade', give: giveTypes[0], get: getTypes[0] }); onClose(); }}
+            className="btn btn-gold"
+            disabled={!canOffer}
+            onClick={() => {
+              if (isCounter && offerId) act({ type: 'counterTrade', offerId, give, get });
+              else act({ type: 'proposeTrade', give, get });
+              onClose();
+            }}
           >
-            Bank-Tausch {giveTypes.length === 1 ? `${bankRate}:1` : '4:1'}
+            {isCounter ? 'Gegenangebot senden' : 'Spielern anbieten'}
           </button>
+          {!isCounter && (
+            <button
+              className="btn btn-outline"
+              disabled={!bankPossible}
+              title={`Kurs ${bankRate}:1`}
+              onClick={() => { act({ type: 'bankTrade', give: giveTypes[0], get: getTypes[0] }); onClose(); }}
+            >
+              Bank-Tausch {giveTypes.length === 1 ? `${bankRate}:1` : '4:1'}
+            </button>
+          )}
           <button className="btn btn-ghost" onClick={onClose}>Abbrechen</button>
         </div>
         <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-          Bank-Tausch: gib genau {bankRate}× einen Rohstoff für 1× einen anderen. Häfen senken den Kurs.
+          {isCounter
+            ? 'Dein Gegenangebot geht zurück an den Spieler am Zug — er kann es annehmen.'
+            : `Bank-Tausch: gib genau ${bankRate}× einen Rohstoff für 1× einen anderen. Häfen senken den Kurs.`}
         </p>
       </div>
     </div>

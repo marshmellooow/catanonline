@@ -37,8 +37,13 @@ function clampCount(v: number | undefined): number {
   const n = Math.floor(Number(v));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
-function fromCounts(c: Partial<ResourceCounts>): ResourceCounts {
-  return { wood: clampCount(c.wood), brick: clampCount(c.brick), wool: clampCount(c.wool), grain: clampCount(c.grain), ore: clampCount(c.ore) };
+function fromCounts(c: Partial<ResourceCounts> | null | undefined): ResourceCounts {
+  // Die Payload kommt roh vom Client (der Server reicht JSON ungeprüft an applyAction
+  // durch): sie kann null, ein Array, ein String oder eine Zahl sein. Ein Feldzugriff
+  // auf null würde hier einen TypeError werfen, der ungefangen aus dem WS-Handler
+  // entkommt und den GANZEN Server-Prozess mitsamt allen Räumen beendet.
+  const o: Partial<ResourceCounts> = c && typeof c === 'object' ? c : {};
+  return { wood: clampCount(o.wood), brick: clampCount(o.brick), wool: clampCount(o.wool), grain: clampCount(o.grain), ore: clampCount(o.ore) };
 }
 function isResource(r: unknown): r is ResourceType {
   return typeof r === 'string' && (RESOURCES as readonly string[]).includes(r);
@@ -411,14 +416,17 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       if (!state.players.some((o) => o.id !== playerId && canAfford(o.resources, get))) {
         return fail('Kein Mitspieler hat die geforderten Karten.');
       }
-      const responses: Record<string, 'accept' | 'reject' | 'pending'> = {};
+      const responses: Record<string, 'accept' | 'reject' | 'pending' | 'counter'> = {};
       for (const other of state.players) {
         if (other.id === playerId) continue;
         // Alle Mitspieler (auch Bots/übernommene Sitze) dürfen antworten — die
         // Bot-Antwort kommt serverseitig über die Auto-Steuerung (siehe bot.ts).
         responses[other.id] = 'pending';
       }
-      const offer: TradeOffer = { id: `t${state.turnCount}_${Object.keys(state.roads).length}`, from: playerId, give, get, responses };
+      // Eindeutige Id über einen monotonen Zähler: propose→cancel→propose im selben
+      // Zug ergab früher dieselbe Id, sodass eine verspätete Antwort/ein Gegenangebot
+      // zum ALTEN Angebot das neue getroffen hätte.
+      const offer: TradeOffer = { id: `t${state.tradeSeq++}`, from: playerId, give, get, responses, counters: {} };
       state.tradeOffer = offer;
       return { events: out };
     }
@@ -433,6 +441,9 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       } else {
         offer.responses[playerId] = 'reject';
       }
+      // Wer normal antwortet, zieht ein früheres Gegenangebot zurück — sonst bliebe
+      // es als annehmbares „Geisterangebot" liegen. (Zugleich der Rückzieh-Weg.)
+      delete offer.counters[playerId];
       return { events: out };
     }
     case 'confirmTrade': {
@@ -452,7 +463,58 @@ export function applyAction(state: GameState, playerId: string, action: GameActi
       state.tradeOffer = null;
       return { events: out };
     }
+    case 'counterTrade': {
+      const offer = state.tradeOffer;
+      if (!offer || offer.id !== action.offerId) return fail('Kein aktuelles Angebot.');
+      if (offer.from === playerId) return fail('Du kannst dein eigenes Angebot nicht kontern.');
+      if (!(playerId in offer.responses)) return fail('Du bist nicht Teil dieses Angebots.');
+      // Mengen aus Sicht des Konternden — clampen (nicht-negative Ganzzahlen, nur
+      // bekannte Rohstoffe), niemals ungeprüft übernehmen.
+      const myGive = fromCounts(action.give);
+      const myGet = fromCounts(action.get);
+      if (resourceTotal(myGive) === 0 || resourceTotal(myGet) === 0) return fail('Beide Seiten müssen mindestens eine Karte enthalten.');
+      const me = getPlayer(state, playerId)!;
+      if (!canAfford(me.resources, myGive)) return fail('Du hast die angebotenen Karten nicht.');
+      // BEWUSST NICHT geprüft: ob der Anbieter `myGet` besitzt. Sonst wäre die
+      // Fehlermeldung ein exaktes Hand-Orakel (man könnte die fremde Hand binär
+      // abfragen). Geprüft wird erst beim Annehmen — da kennt der Anbieter seine
+      // eigene Hand, also kein Leak.
+      // In die ANBIETER-Perspektive drehen (siehe TradeCounter): was ich bekomme,
+      // gibt der Anbieter her — und umgekehrt.
+      offer.counters[playerId] = { give: myGet, get: myGive };
+      offer.responses[playerId] = 'counter';
+      return { events: out };
+    }
+    case 'acceptCounter': {
+      const offer = state.tradeOffer;
+      if (!offer || offer.id !== action.offerId) return fail('Kein aktuelles Angebot.');
+      if (offer.from !== playerId) return fail('Nur der Anbieter nimmt ein Gegenangebot an.');
+      // Erst der String-Vergleich auf den Status, DANN erst `counters[...]` lesen:
+      // sonst liefert z. B. withPlayer='__proto__' einen Prototyp-Treffer (truthy),
+      // und das nachfolgende getPlayer(...)! würde den Server crashen.
+      if (offer.responses[action.withPlayer] !== 'counter') return fail('Von diesem Spieler liegt kein Gegenangebot vor.');
+      const counter = offer.counters[action.withPlayer];
+      if (!counter) return fail('Von diesem Spieler liegt kein Gegenangebot vor.');
+      const partner = getPlayer(state, action.withPlayer);
+      if (!partner) return fail('Spieler unbekannt.');
+      const proposer = getPlayer(state, playerId)!;
+      // Beide Hände zur AUSFÜHRUNGSZEIT neu prüfen — zwischen Kontern und Annehmen
+      // kann sich alles geändert haben (Bauen, Monopol, Räuber, Abwurf nach 7).
+      if (!canAfford(proposer.resources, counter.give)) return fail('Du hast die Karten nicht mehr.');
+      if (!canAfford(partner.resources, counter.get)) return fail('Der Partner hat die Karten nicht mehr.');
+      // Identischer Tausch wie confirmTrade — counters stehen in Anbieter-Perspektive.
+      payCost(proposer.resources, counter.give);
+      addResources(proposer.resources, counter.get);
+      payCost(partner.resources, counter.get);
+      addResources(partner.resources, counter.give);
+      log(state, { t: 'trade', from: playerId, to: action.withPlayer, give: counter.give, get: counter.get }, out);
+      state.tradeOffer = null;
+      return { events: out };
+    }
     case 'cancelTrade': {
+      // Muss für den Anbieter IMMER möglich bleiben (auch bei offenen Gegenangeboten):
+      // die Auto-Steuerung (enforceTurn/botTick) löst ein Angebot hierüber auf — ein
+      // zusätzlicher Guard würde dort eine Endlosschleife erzeugen.
       if (!state.tradeOffer) return fail('Kein Angebot offen.');
       if (state.tradeOffer.from !== playerId) return fail('Nur der Anbieter kann abbrechen.');
       state.tradeOffer = null;

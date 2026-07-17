@@ -31,6 +31,83 @@ function setRes(s: GameState, id: string, r: Partial<Record<ResourceType, number
   p.resources = { ...emptyResources(), ...r };
 }
 
+describe('Bot + Gegenangebot', () => {
+  /** p1 (Bot) hat den Anbieter-Sitz geerbt und p0 (Mensch) hat gekontert. */
+  function botOfferWithCounter(counterGive: Partial<Record<ResourceType, number>>, counterGet: Partial<Record<ResourceType, number>>): GameState {
+    const s = mainPhaseGame();
+    setRes(s, 'p1', { ore: 2, wool: 2 });
+    setRes(s, 'p0', { wood: 3, grain: 3 });
+    // Angebot im Namen von p1 (so, als hätte der Bot den Sitz übernommen)
+    s.activeIndex = 1;
+    applyAction(s, 'p1', { type: 'proposeTrade', give: { ore: 1 }, get: { wood: 1 } });
+    applyAction(s, 'p0', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: counterGive, get: counterGet });
+    return s;
+  }
+
+  it('Gegenangebote werden NIE automatisch angenommen — auch nicht ein „faires"', () => {
+    // Dieser Zweig läuft über room.ts::enforceTurn auch für einen verbundenen MENSCHEN,
+    // dessen Zugzeit abläuft. Vom Gegner diktierte Konditionen dürfen niemandem
+    // ungefragt die Karten tauschen (die Fairness-Schranke zählt nur Anzahl, nicht Wert:
+    // ein Gegner könnte gezielt die letzte gebrauchte Karte gegen Ballast abziehen).
+    const cases: Array<[Partial<Record<ResourceType, number>>, Partial<Record<ResourceType, number>>]> = [
+      [{ grain: 2 }, { ore: 1 }], // „fair" (Gewinn 2 > Kosten 1) — trotzdem NICHT annehmen
+      [{ grain: 3 }, { wool: 2 }], // „fair", anderer Rohstoff
+      [{ grain: 1 }, { ore: 2 }], // unfair
+    ];
+    for (const [g, t] of cases) {
+      const s = botOfferWithCounter(g, t);
+      const before = { ...s.players.find((p) => p.id === 'p1')!.resources };
+      const a = chooseBotAction(s, 'p1');
+      expect(a, `Konter ${JSON.stringify(g)}→${JSON.stringify(t)}`).toEqual({ type: 'cancelTrade' });
+      expect('events' in applyAction(s, 'p1', a!)).toBe(true); // Reducer akzeptiert → kein Endlos-Tick
+      expect(s.players.find((p) => p.id === 'p1')!.resources).toEqual(before); // keine Karte bewegt
+      expect(s.tradeOffer).toBeNull();
+    }
+  });
+
+  it('kein Endlos-Tick: veraltetes „accept" (Partner hat die Karten nicht mehr) → cancelTrade', () => {
+    // Sonst liefert der Bot ewig ein confirmTrade, das der Reducer ablehnt → botTick/
+    // enforceTurn wiederholen es alle 700 ms, der Zug endet nie.
+    const s = mainPhaseGame();
+    s.activeIndex = 1;
+    setRes(s, 'p1', { ore: 1 });
+    setRes(s, 'p0', { wood: 1 });
+    applyAction(s, 'p1', { type: 'proposeTrade', give: { ore: 1 }, get: { wood: 1 } });
+    applyAction(s, 'p0', { type: 'respondTrade', offerId: s.tradeOffer!.id, accept: true });
+    setRes(s, 'p0', {}); // p0 verliert das Holz nachträglich (Bauen/Monopol/Räuber)
+    const a = chooseBotAction(s, 'p1');
+    expect(a).toEqual({ type: 'cancelTrade' });
+    expect('events' in applyAction(s, 'p1', a!)).toBe(true);
+    expect(s.tradeOffer).toBeNull();
+  });
+
+  it('bezahlbares „accept" wird weiterhin normal bestätigt', () => {
+    const s = mainPhaseGame();
+    s.activeIndex = 1;
+    setRes(s, 'p1', { ore: 1 });
+    setRes(s, 'p0', { wood: 1 });
+    applyAction(s, 'p1', { type: 'proposeTrade', give: { ore: 1 }, get: { wood: 1 } });
+    applyAction(s, 'p0', { type: 'respondTrade', offerId: s.tradeOffer!.id, accept: true });
+    const a = chooseBotAction(s, 'p1');
+    expect(a).toEqual({ type: 'confirmTrade', offerId: s.tradeOffer!.id, withPlayer: 'p0' });
+    expect('events' in applyAction(s, 'p1', a!)).toBe(true);
+    expect(s.players.find((p) => p.id === 'p1')!.resources.wood).toBe(1);
+  });
+
+  it('Bot als Empfänger antwortet normal, auch wenn ein FREMDER gekontert hat', () => {
+    const s = mainPhaseGame();
+    setRes(s, 'p0', { ore: 1 });
+    setRes(s, 'p1', { wool: 1 });
+    setRes(s, 'p2', { wool: 1 });
+    applyAction(s, 'p0', { type: 'proposeTrade', give: { ore: 1 }, get: { wool: 1 } });
+    applyAction(s, 'p2', { type: 'counterTrade', offerId: s.tradeOffer!.id, give: { wool: 1 }, get: { ore: 1 } });
+    // p1 steht weiter auf 'pending' → Bot antwortet ganz normal
+    const a = chooseBotAction(s, 'p1');
+    expect(a).toEqual({ type: 'respondTrade', offerId: s.tradeOffer!.id, accept: true });
+    expect('events' in applyAction(s, 'p1', a!)).toBe(true);
+  });
+});
+
 describe('Bot-Handel', () => {
   it('setzt Bot-Antworten auf „pending" statt sofort abzulehnen', () => {
     const s = mainPhaseGame();

@@ -21,6 +21,7 @@ export {
   MessageCircle, // Chat
   Check, // Annehmen / bestätigt
   X, // Ablehnen / schließen
+  Pencil, // Gegenangebot machen / bearbeiten
   Clock, // Wartet
   ArrowUp, // Du gibst
   ArrowDown, // Du bekommst

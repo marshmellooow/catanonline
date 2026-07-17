@@ -40,6 +40,81 @@ describe('Manipulierte Eingaben (Trust-Boundary)', () => {
     expect(total(s)).toBe(before);
   });
 
+  it('counterTrade: manipulierte Mengen erzeugen keine Karten', () => {
+    const s = newGame(3);
+    driveSetup(s);
+    s.phase = 'main';
+    s.hasRolled = true;
+    s.players[0].resources = { wood: 2, brick: 0, wool: 0, grain: 0, ore: 0 };
+    s.players[1].resources = { wood: 0, brick: 0, wool: 2, grain: 0, ore: 1 };
+    applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: { ore: 1 } });
+    const id = s.tradeOffer!.id;
+    const before = total(s);
+    // negativ / NaN / Infinity werden auf 0 geklemmt → leere Seite → Fehler
+    for (const bad of [{ wool: -8 }, { wool: NaN }, { wool: Infinity }] as never[]) {
+      expect('error' in applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: bad, get: { wood: 1 } })).toBe(true);
+    }
+    // Nachkommastellen werden abgerundet (2.7 → 2), nicht aufgerundet
+    expect('events' in applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: { wool: 2.7 } as never, get: { wood: 1 } })).toBe(true);
+    expect(s.tradeOffer!.counters['p1'].get.wool).toBe(2);
+    // leere Seite
+    expect('error' in applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: {}, get: { wood: 1 } })).toBe(true);
+    // mehr geben als man hat
+    expect('error' in applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: { wool: 99 }, get: { wood: 1 } })).toBe(true);
+    expect(total(s)).toBe(before);
+    for (const p of s.players) for (const r of RESOURCES) expect(p.resources[r]).toBeGreaterThanOrEqual(0);
+  });
+
+  it('Nicht-Objekt als Mengen-Payload wirft nie (würde sonst den ganzen Server killen)', () => {
+    // Der Server reicht rohes JSON an applyAction durch; ein uncaught TypeError im
+    // WS-Handler beendet den Prozess mitsamt ALLEN laufenden Räumen.
+    const s = newGame(3);
+    driveSetup(s);
+    s.phase = 'main';
+    s.hasRolled = true;
+    s.players[0].resources = { wood: 2, brick: 0, wool: 0, grain: 0, ore: 0 };
+    s.players[1].resources = { wood: 0, brick: 0, wool: 2, grain: 0, ore: 1 };
+    const before = total(s);
+    const junk = [null, undefined, 'abc', 42, [], true];
+    for (const bad of junk) {
+      expect(() => applyAction(s, 'p0', { type: 'proposeTrade', give: bad as never, get: { ore: 1 } })).not.toThrow();
+      expect(() => applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: bad as never })).not.toThrow();
+    }
+    applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: { ore: 1 } });
+    const id = s.tradeOffer!.id;
+    for (const bad of junk) {
+      expect(() => applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: bad as never, get: { wood: 1 } })).not.toThrow();
+      expect(() => applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: { wool: 1 }, get: bad as never })).not.toThrow();
+    }
+    expect(total(s)).toBe(before);
+  });
+
+  it('counterTrade/acceptCounter: nur Berechtigte, und __proto__ crasht nicht', () => {
+    const s = newGame(3);
+    driveSetup(s);
+    s.phase = 'main';
+    s.hasRolled = true;
+    s.players[0].resources = { wood: 2, brick: 0, wool: 0, grain: 0, ore: 0 };
+    s.players[1].resources = { wood: 0, brick: 0, wool: 2, grain: 0, ore: 1 };
+    applyAction(s, 'p0', { type: 'proposeTrade', give: { wood: 2 }, get: { ore: 1 } });
+    const id = s.tradeOffer!.id;
+    // Anbieter kann sein eigenes Angebot nicht kontern
+    expect('error' in applyAction(s, 'p0', { type: 'counterTrade', offerId: id, give: { wood: 1 }, get: { ore: 1 } })).toBe(true);
+    // falsche/stale offerId
+    expect('error' in applyAction(s, 'p1', { type: 'counterTrade', offerId: 'tXX', give: { wool: 1 }, get: { wood: 1 } })).toBe(true);
+    applyAction(s, 'p1', { type: 'counterTrade', offerId: id, give: { wool: 2 }, get: { wood: 2 } });
+    // nur der Anbieter darf annehmen
+    expect('error' in applyAction(s, 'p2', { type: 'acceptCounter', offerId: id, withPlayer: 'p1' })).toBe(true);
+    // Prototyp-Ketten dürfen nicht durchschlagen (sonst getPlayer(...)! → TypeError)
+    for (const evil of ['__proto__', 'constructor', 'toString']) {
+      expect(() => applyAction(s, 'p0', { type: 'acceptCounter', offerId: id, withPlayer: evil })).not.toThrow();
+      expect('error' in applyAction(s, 'p0', { type: 'acceptCounter', offerId: id, withPlayer: evil })).toBe(true);
+    }
+    // Spieler ohne Gegenangebot
+    expect('error' in applyAction(s, 'p0', { type: 'acceptCounter', offerId: id, withPlayer: 'p2' })).toBe(true);
+    expect(s.tradeOffer).not.toBeNull();
+  });
+
   it('discard mit negativer Menge erzeugt keine Karten und korrumpiert die Bank nicht', () => {
     const s = newGame(3);
     driveSetup(s);

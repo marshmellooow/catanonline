@@ -23,6 +23,21 @@ function decideTradeResponse(state: GameState, botId: string, offer: TradeOffer)
   return { type: 'respondTrade', offerId: offer.id, accept };
 }
 
+/**
+ * Würde der Reducer diesen Tausch ausführen? Spiegelt die `canAfford`-Prüfungen von
+ * `confirmTrade`. Der Bot darf nur Aktionen liefern, die `applyAction` akzeptiert —
+ * eine abgelehnte Aktion lässt botTick/enforceTurn dieselbe Wahl endlos wiederholen.
+ */
+function canSettleOffer(state: GameState, proposerId: string, partnerId: string, offer: TradeOffer): boolean {
+  const proposer = state.players.find((p) => p.id === proposerId);
+  const partner = state.players.find((p) => p.id === partnerId);
+  if (!proposer || !partner) return false;
+  return (
+    RESOURCES.every((r) => proposer.resources[r] >= offer.give[r]) &&
+    RESOURCES.every((r) => partner.resources[r] >= offer.get[r])
+  );
+}
+
 function cornerValue(state: GameState, corner: number): number {
   let v = 0;
   for (const hid of state.board.corners[corner].hexes) {
@@ -39,8 +54,21 @@ export function chooseBotAction(state: GameState, botId: string): GameAction | n
     if (offer.responses[botId] === 'pending') return decideTradeResponse(state, botId, offer);
     if (offer.from === botId) {
       // Bot ist (durch Sitzübernahme) selbst Anbieter → auflösen, damit der Zug nicht hängt.
-      const accepter = Object.keys(offer.responses).find((pid) => offer.responses[pid] === 'accept');
-      return accepter ? { type: 'confirmTrade', offerId: offer.id, withPlayer: accepter } : { type: 'cancelTrade' };
+      // Nur einen Annehmer bestätigen, dessen Tausch der Reducer auch wirklich ausführt:
+      // Hände können sich nach dem 'accept' geändert haben (Bauen, Monopol, Räuber,
+      // Abwurf nach 7). Sonst lehnt applyAction ab und botTick/enforceTurn wiederholen
+      // dieselbe Aktion alle 700 ms endlos — der Zug endet nie.
+      const accepter = Object.keys(offer.responses).find(
+        (pid) => offer.responses[pid] === 'accept' && canSettleOffer(state, botId, pid, offer),
+      );
+      if (accepter) return { type: 'confirmTrade', offerId: offer.id, withPlayer: accepter };
+      // Gegenangebote werden BEWUSST nie automatisch angenommen: dieser Zweig läuft über
+      // room.ts::enforceTurn auch für einen verbundenen MENSCHEN, dessen Zugzeit abläuft.
+      // Vom Gegner diktierte Konditionen dürfen niemandem ungefragt die Karten tauschen
+      // (ein Gegner könnte sonst gezielt eine gebrauchte Karte gegen Ballast abziehen —
+      // die Fairness-Schranke zählt nur Kartenanzahl, nicht Wert).
+      // cancelTrade ist für offer.from immer gültig → kein Stall.
+      return { type: 'cancelTrade' };
     }
   }
 

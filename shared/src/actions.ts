@@ -22,6 +22,12 @@ export type GameAction =
   | { type: 'proposeTrade'; give: Partial<ResourceCounts>; get: Partial<ResourceCounts> }
   | { type: 'respondTrade'; offerId: string; accept: boolean }
   | { type: 'confirmTrade'; offerId: string; withPlayer: string }
+  // Gegenangebot eines Empfängers an den Anbieter. `give`/`get` sind aus Sicht
+  // des KONTERNDEN gemeint (give = was er hergibt) — so, wie der Dialog es zeigt.
+  // Der Reducer dreht das einmal in die Anbieter-Perspektive (siehe TradeCounter).
+  | { type: 'counterTrade'; offerId: string; give: Partial<ResourceCounts>; get: Partial<ResourceCounts> }
+  // Anbieter nimmt das Gegenangebot von `withPlayer` an.
+  | { type: 'acceptCounter'; offerId: string; withPlayer: string }
   | { type: 'cancelTrade' }
   | { type: 'endTurn' };
 

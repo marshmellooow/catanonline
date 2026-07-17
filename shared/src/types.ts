@@ -110,12 +110,26 @@ export interface Building {
   type: 'settlement' | 'city';
 }
 
+/** Gegenangebot eines Empfängers. WICHTIG: `give`/`get` stehen — wie beim
+ *  umgebenden Angebot — aus Sicht des ANBIETERS (`TradeOffer.from`):
+ *  `give` = was der Anbieter hergibt, `get` = was der Anbieter bekommt.
+ *  Der Reducer rechnet die Sicht des Konternden einmal beim `counterTrade` um,
+ *  damit `acceptCounter` denselben Tausch fährt wie `confirmTrade` (keine
+ *  Perspektiv-Verwechslung). */
+export interface TradeCounter {
+  give: ResourceCounts;
+  get: ResourceCounts;
+}
+
 export interface TradeOffer {
   id: string;
   from: string;
-  give: ResourceCounts;
-  get: ResourceCounts;
-  responses: Record<string, 'accept' | 'reject' | 'pending'>;
+  give: ResourceCounts; // was `from` hergibt
+  get: ResourceCounts; // was `from` bekommt
+  responses: Record<string, 'accept' | 'reject' | 'pending' | 'counter'>;
+  /** Gegenangebote je Empfänger (Anbieter-Perspektive, siehe `TradeCounter`).
+   *  Öffentlich wie das Angebot selbst — am Tisch sagt man sein Gegenangebot laut. */
+  counters: Record<string, TradeCounter>;
 }
 
 export type GameEvent =
@@ -170,6 +184,10 @@ export interface GameState {
 
   // Handel
   tradeOffer: TradeOffer | null;
+  /** Monoton steigender Zähler für eindeutige Angebots-Ids. Verhindert, dass
+   *  eine verspätete Antwort/ein Gegenangebot zu Angebot A ein späteres
+   *  Angebot B trifft (propose→cancel→propose ergab sonst dieselbe Id). */
+  tradeSeq: number;
 
   // Auszeichnungen
   longestRoadHolder: string | null;
