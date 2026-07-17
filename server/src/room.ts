@@ -64,6 +64,10 @@ export class Room {
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   private turnTimerPlayerId: string | null = null; // Zug-Eigner, für den die Frist läuft
   private turnDeadline = 0; // epoch ms, Ablaufzeitpunkt des aktuellen Zugs
+  // Nach Ablauf übernimmt der Autopilot denselben Sitz schrittweise. Ein eigener Timer
+  // verhindert, dass scheduleTimers die abgelaufene Zug-Deadline als 0-ms-Kette neu plant.
+  private enforcedTurnTimer: ReturnType<typeof setTimeout> | null = null;
+  private enforcedTurnPlayerId: string | null = null;
   // Abwurf-Countdown (nach einer 7): läuft für ALLE, die abwerfen müssen; bei Ablauf (halbe
   // Zug-Zeit) wird für säumige Menschen Karte für Karte zufällig abgeworfen.
   private discardTimer: ReturnType<typeof setTimeout> | null = null;
@@ -264,6 +268,7 @@ export class Room {
     if (this.botTimer) clearTimeout(this.botTimer);
     this.clearRollTimer();
     this.clearTurnTimer();
+    this.clearTurnEnforcement();
     this.clearDiscardTimer();
     this.clearTradeTimer();
     for (const p of this.players) if (p.disconnectTimer) clearTimeout(p.disconnectTimer);
@@ -425,6 +430,7 @@ export class Room {
     if (this.botTimer) { clearTimeout(this.botTimer); this.botTimer = null; }
     this.clearRollTimer();
     this.clearTurnTimer();
+    this.clearTurnEnforcement();
     this.clearDiscardTimer();
     this.clearTradeTimer();
     this.turnTimerPlayerId = null;
@@ -447,7 +453,11 @@ export class Room {
       this.send(p.socket, { t: 'error', message: result.error });
       return;
     }
+    const wasEnforced = this.enforcedTurnPlayerId === playerId;
     this.afterGameMutation(result.events);
+    // Klickt der Spieler während der bereits laufenden Timeout-Übernahme selbst noch,
+    // beginnt der Abstand zur nächsten Auto-Aktion neu statt kurz darauf zu springen.
+    if (wasEnforced) this.scheduleEnforcedTurnStep(playerId, botDelayFor(action));
   }
 
   private afterGameMutation(events: GameEvent[]) {
@@ -614,6 +624,19 @@ export class Room {
   private clearTurnTimer() {
     if (this.turnTimer) { clearTimeout(this.turnTimer); this.turnTimer = null; }
   }
+  private clearTurnEnforcement() {
+    if (this.enforcedTurnTimer) { clearTimeout(this.enforcedTurnTimer); this.enforcedTurnTimer = null; }
+    this.enforcedTurnPlayerId = null;
+  }
+  private scheduleEnforcedTurnStep(playerId: string, delay: number) {
+    const g = this.game;
+    if (
+      this.enforcedTurnPlayerId !== playerId || !g || g.winner ||
+      this.phase !== 'playing' || g.order[g.activeIndex] !== playerId
+    ) return;
+    if (this.enforcedTurnTimer) clearTimeout(this.enforcedTurnTimer);
+    this.enforcedTurnTimer = setTimeout(() => this.enforceTurn(playerId), delay);
+  }
   /** Aktuelle Restzeit des Zugs in ms (für die Client-Anzeige), sonst undefined. */
   private turnRemainingMs(): number | undefined {
     if (this.turnSeconds <= 0 || this.phase !== 'playing' || !this.turnDeadline) return undefined;
@@ -624,14 +647,18 @@ export class Room {
   /** Startet/erneuert die Zug-Frist. Neue Frist nur bei Zug-Eignerwechsel; sonst gleiche Deadline. */
   private armTurnTimer() {
     this.clearTurnTimer();
-    if (this.turnSeconds <= 0) { this.turnTimerPlayerId = null; return; }
+    if (this.turnSeconds <= 0) { this.turnTimerPlayerId = null; this.clearTurnEnforcement(); return; }
     const g = this.game;
-    if (!g || g.winner || this.phase !== 'playing') { this.turnTimerPlayerId = null; return; }
+    if (!g || g.winner || this.phase !== 'playing') { this.turnTimerPlayerId = null; this.clearTurnEnforcement(); return; }
     const active = this.activeRoomPlayer();
-    if (!active || this.isAuto(active)) { this.turnTimerPlayerId = null; return; } // Bots ticken selbst
+    if (!active || this.isAuto(active)) { this.turnTimerPlayerId = null; this.clearTurnEnforcement(); return; } // Bots ticken selbst
     // Kein Zug-Countdown während der Startaufstellung — Setup ist kein „Zug" im engeren Sinn;
     // so bekommt der erste echte Zug die volle Zeit und die Aufstellung wird nicht gehetzt.
-    if (g.phase === 'setupSettlement' || g.phase === 'setupRoad') { this.turnTimerPlayerId = null; return; }
+    if (g.phase === 'setupSettlement' || g.phase === 'setupRoad') { this.turnTimerPlayerId = null; this.clearTurnEnforcement(); return; }
+    // Der abgelaufene Zug wird bereits von enforceTurn getaktet. Seine Deadline bleibt bei
+    // 0 für die Anzeige; ein neuer normaler Countdown darf erst beim Spielerwechsel starten.
+    if (this.enforcedTurnPlayerId === active.id) return;
+    if (this.enforcedTurnPlayerId) this.clearTurnEnforcement();
     if (this.turnTimerPlayerId !== active.id) {
       this.turnTimerPlayerId = active.id;
       this.turnDeadline = Date.now() + this.turnSeconds * 1000;
@@ -642,14 +669,18 @@ export class Room {
   /** Frist abgelaufen → Zug per Bot-Logik zu Ende spielen (würfeln, Räuber, … , Zug beenden). */
   private enforceTurn(playerId: string) {
     this.turnTimer = null;
+    this.enforcedTurnTimer = null;
     const g = this.game;
-    if (!g || g.winner || this.phase !== 'playing') return;
-    if (g.order[g.activeIndex] !== playerId) { this.turnTimerPlayerId = null; this.armTurnTimer(); return; }
+    if (!g || g.winner || this.phase !== 'playing') { this.clearTurnEnforcement(); return; }
+    if (g.order[g.activeIndex] !== playerId) { this.clearTurnEnforcement(); this.turnTimerPlayerId = null; this.armTurnTimer(); return; }
     const p = this.findPlayer(playerId);
-    if (!p || this.isAuto(p)) { this.turnTimerPlayerId = null; return; } // wurde Bot → botTick übernimmt
+    if (!p || this.isAuto(p)) { this.clearTurnEnforcement(); this.turnTimerPlayerId = null; return; } // wurde Bot → botTick übernimmt
+
+    this.enforcedTurnPlayerId = playerId;
 
     const action = chooseBotAction(g, playerId);
     if (action) {
+      let performedAction = action;
       let result = applyAction(g, playerId, action);
       if ('error' in result) {
         // Netz gegen die 500-ms-Dauerschleife: derselbe State ergäbe dieselbe abgelehnte
@@ -657,18 +688,21 @@ export class Room {
         // gültige Notaktion ausweichen statt neu zu planen.
         console.warn(`[enforceTurn] Reducer lehnte ${action.type} ab (${result.error}) — Notaktion.`);
         const fb = fallbackAction(g, playerId);
-        result = fb ? applyAction(g, playerId, fb) : result;
+        if (fb) {
+          performedAction = fb;
+          result = applyAction(g, playerId, fb);
+        }
       }
       if ('events' in result) {
-        // afterGameMutation broadcastet UND plant Timer neu: bleibt es (überzogen) mein Zug,
-        // setzt armTurnTimer sofort das nächste enforceTurn (remaining=0) → Zug wird zu Ende gespielt;
-        // geht der Zug weiter, plant scheduleBotTick den nächsten (Bot-)Akteur.
+        // afterGameMutation plant alle übrigen Timer neu. armTurnTimer erkennt dabei die
+        // laufende Übernahme und lässt deren separaten Taktgeber in Ruhe.
         this.afterGameMutation(result.events);
+        this.scheduleEnforcedTurnStep(playerId, botDelayFor(performedAction));
         return;
       }
     }
     // Keine (gültige) Aktion für mich → wartet auf andere (z. B. deren Abwerfen) → gleich erneut prüfen.
-    this.turnTimer = setTimeout(() => this.enforceTurn(playerId), 500);
+    this.scheduleEnforcedTurnStep(playerId, 500);
   }
 
   // ---------- Abwurf-Countdown (Auto-Abwerfen nach einer 7) ----------

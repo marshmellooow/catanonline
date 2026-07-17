@@ -241,10 +241,93 @@ describe('Auto-Würfeln (#2) & Zug-Countdown (#3)', () => {
       driveSetup(room);
       expect(room.game!.phase).toBe('roll');
       const firstActive = room.game!.activeIndex;
-      // Über die Frist hinaus vorspulen: Auto-Würfeln (3s) + Zug-Timer (20s) + Auto-Pilot (0ms-Kette)
-      vi.advanceTimersByTime(20_000 + 1000);
+      // Über die Frist hinaus vorspulen: Auto-Würfeln (3s) + Zug-Timer (20s) +
+      // genug Zeit für mehrere sichtbar getaktete Autopilot-Schritte.
+      vi.advanceTimersByTime(20_000 + BOT_MOVE_DELAY_MS * 12);
       expect(room.game!.activeIndex).not.toBe(firstActive); // Zug ist weitergegangen
       expect(room.game!.turnCount).toBeGreaterThan(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('taktet Folgeaktionen eines abgelaufenen Menschenzugs wie reguläre Bot-Züge', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players } = lobby(3);
+      players.forEach((p) => room.setReady(p.id, true));
+      room.setTurnTime(players[0].id, 20);
+      room.startGame(players[0].id);
+      driveSetup(room);
+
+      const g = room.game!;
+      const active = g.order[g.activeIndex];
+      const actor = g.players.find((p) => p.id === active)!;
+      g.phase = 'main';
+      g.hasRolled = true;
+      actor.resources = { wood: 1, brick: 1, wool: 0, grain: 0, ore: 0 };
+      expect(validRoadEdges(g, active, null).length).toBeGreaterThan(0);
+
+      const intern = room as unknown as {
+        clearRollTimer(): void;
+        clearTurnTimer(): void;
+        enforceTurn(playerId: string): void;
+        turnRemainingMs(): number | undefined;
+      };
+      intern.clearRollTimer();
+      intern.clearTurnTimer();
+
+      const roadsBefore = Object.values(g.roads).filter((r) => r.owner === active).length;
+      intern.enforceTurn(active); // erster Schritt genau beim Ablauf: sichtbarer Straßenbau
+      expect(Object.values(g.roads).filter((r) => r.owner === active)).toHaveLength(roadsBefore + 1);
+      expect(g.order[g.activeIndex]).toBe(active);
+
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS - 1);
+      expect(g.order[g.activeIndex]).toBe(active); // kein 0-ms-Durchrauschen
+
+      vi.advanceTimersByTime(1); // nächster Schritt: Zugende
+      expect(g.order[g.activeIndex]).not.toBe(active);
+      expect(intern.turnRemainingMs()).toBe(20_000); // nächster Mensch erhält eine volle neue Frist
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('startet den Autopilot-Abstand neu, wenn der überzogene Spieler selbst noch baut', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players } = lobby(3);
+      players.forEach((p) => room.setReady(p.id, true));
+      room.startGame(players[0].id);
+      driveSetup(room);
+
+      const g = room.game!;
+      const active = g.order[g.activeIndex];
+      const actor = g.players.find((p) => p.id === active)!;
+      g.phase = 'main';
+      g.hasRolled = true;
+      actor.resources = { wood: 2, brick: 2, wool: 0, grain: 0, ore: 0 };
+
+      const intern = room as unknown as {
+        clearRollTimer(): void;
+        clearTurnTimer(): void;
+        enforceTurn(playerId: string): void;
+      };
+      intern.clearRollTimer();
+      intern.clearTurnTimer();
+      intern.enforceTurn(active); // erste Straße durch die Timeout-Übernahme
+
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS / 2);
+      const manualEdge = validRoadEdges(g, active, null)[0];
+      expect(manualEdge).toBeDefined();
+      room.handleAction(active, { type: 'buildRoad', edge: manualEdge });
+
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS / 2); // ursprünglicher Termin wäre jetzt
+      expect(g.order[g.activeIndex]).toBe(active);
+      vi.advanceTimersByTime(BOT_MOVE_DELAY_MS / 2 - 1);
+      expect(g.order[g.activeIndex]).toBe(active);
+      vi.advanceTimersByTime(1); // 700 ms seit der manuellen Straße → Zugende
+      expect(g.order[g.activeIndex]).not.toBe(active);
     } finally {
       vi.useRealTimers();
     }
