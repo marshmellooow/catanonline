@@ -1,28 +1,21 @@
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../../store';
 import { COSTS, canAfford, type ResourceCounts } from '@catan/shared';
 import { Dices, Check, X } from '../../icons';
-import { RESOURCE_ORDER } from './ui';
-import { ResChip } from './ResChip';
+import { CostDetails } from './CostDetails';
 import type { BuildIntent } from '../board/buildSelectionLogic';
 
-/** Kosten-Tooltip: pro benötigtem Rohstoff ein Chip mit Anzahl; vorhanden = farbig, fehlend = ausgegraut. */
-function CostPop({ cost, res, anchor }: { cost: Partial<ResourceCounts>; res: ResourceCounts; anchor: DOMRect }) {
-  const parts = RESOURCE_ORDER.filter((r) => (cost[r] ?? 0) > 0);
-  const affordable = canAfford(res, cost);
+/** Kosten-Tooltip: volle Rohstofffarbe plus eindeutiger Text- und Statuskontrast. */
+function CostPop({ cost, res, anchor, id }: { cost: Partial<ResourceCounts>; res: ResourceCounts; anchor: DOMRect; id: string }) {
   return createPortal(
     <div
+      id={id}
+      role="tooltip"
       className="cost-pop"
       style={{ position: 'fixed', left: anchor.left + anchor.width / 2, top: anchor.top - 8, transform: 'translate(-50%, -100%)' }}
     >
-      <div className="cost-pop-title">Kosten{affordable ? '' : ' · fehlt etwas'}</div>
-      <div className="cost-pop-row">
-        {parts.map((r) => (
-          // Farbig, sobald du diesen Rohstoff überhaupt besitzt; ausgegraut, wenn du keinen hast.
-          <ResChip key={r} res={r} count={cost[r]} dim={(res[r] ?? 0) === 0} />
-        ))}
-      </div>
+      <CostDetails cost={cost} res={res} />
     </div>,
     document.body,
   );
@@ -45,15 +38,28 @@ function BuildButton({
   onClick: () => void;
 }) {
   const spanRef = useRef<HTMLSpanElement>(null);
+  const tooltipId = useId();
   const [rect, setRect] = useState<DOMRect | null>(null);
   const show = () => spanRef.current && setRect(spanRef.current.getBoundingClientRect());
   const hide = () => setRect(null);
   return (
-    <span className="build-opt" ref={spanRef} onMouseEnter={show} onMouseLeave={hide}>
-      <button className={`btn ${active ? 'btn-gold' : 'btn-ghost'}`} disabled={disabled} onClick={onClick}>
+    <span
+      className="build-opt"
+      ref={spanRef}
+      data-build-cost={label}
+      tabIndex={disabled ? 0 : undefined}
+      role={disabled ? 'group' : undefined}
+      aria-label={disabled ? `${label}: Kosten anzeigen` : undefined}
+      aria-describedby={rect ? tooltipId : undefined}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocusCapture={show}
+      onBlurCapture={hide}
+    >
+      <button className={`btn ${active ? 'btn-gold' : 'btn-ghost'}`} disabled={disabled} aria-describedby={rect ? tooltipId : undefined} onClick={onClick}>
         {label}
       </button>
-      {rect && <CostPop cost={cost} res={res} anchor={rect} />}
+      {rect && <CostPop cost={cost} res={res} anchor={rect} id={tooltipId} />}
     </span>
   );
 }

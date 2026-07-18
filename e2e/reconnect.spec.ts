@@ -123,6 +123,14 @@ test('stellt einen eigenen Zug nach Disconnect ohne Sitz- oder Aktionsverlust wi
     const roadChoices = reconnected.locator('[data-highlight-edge]');
     await expect(roadChoices.first()).toBeVisible();
     await expect(roadChoices.first()).toBeFocused();
+    const roadPulse = roadChoices.first().locator('.build-road-pulse');
+    await expect(roadPulse).toHaveCSS('animation-name', 'buildRoadCandidatePulse');
+    await expect(roadPulse).toHaveCSS('animation-duration', '1.6s');
+    await expect(roadPulse).toHaveCSS('animation-iteration-count', 'infinite');
+    await reconnected.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(roadPulse).toHaveCSS('animation-name', 'none');
+    await expect(roadPulse).toHaveCSS('opacity', '1');
+    await reconnected.emulateMedia({ reducedMotion: 'no-preference' });
     const edgeId = await roadChoices.first().getAttribute('data-highlight-edge');
     expect(edgeId).toBeTruthy();
     const observerRoadsBefore = await observerPage.locator('[data-road]').count();

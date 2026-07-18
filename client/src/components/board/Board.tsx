@@ -169,12 +169,53 @@ export const Board = memo(function Board(props: BoardProps) {
         );
       })}
 
-      {/* Gebäude */}
+      {/* Straßen-Bauplätze liegen bewusst HINTER den Gebäuden: Die breite, gut
+          sichtbare Markierung darf eine Siedlung/Stadt am Knoten nicht verdecken. */}
+      {props.highlightEdges?.map((id, index) => {
+        const e = board.edges[id];
+        if (!e) return null;
+        const selected = props.buildSelection?.kind === 'road' && props.buildSelection.edge === id;
+        const label = props.buildKind ? `${buildLabel(props.buildKind)} an dieser Kante auswählen` : 'Baukante auswählen';
+        return (
+          <g
+            key={`he${id}`}
+            data-highlight-edge={id}
+            className={`build-candidate build-road-candidate ${selected ? 'build-candidate-selected' : ''}`}
+            role="button"
+            tabIndex={selected || (!props.buildSelection && index === 0) ? 0 : -1}
+            aria-label={label}
+            aria-pressed={selected}
+            style={{ cursor: 'pointer' }}
+            onClick={() => props.onEdge?.(id)}
+            onKeyDown={(event) => activateCandidate(event, () => props.onEdge?.(id), '[data-highlight-edge]')}
+          >
+            {/* Eigene Fläche am Kantenmittelpunkt hält auch senkrechte/waagerechte
+                SVG-Kanten als ausreichend großes Touch- und Testziel messbar. */}
+            <circle cx={(e.x1 + e.x2) / 2} cy={(e.y1 + e.y2) / 2} r={w * 0.2} fill="transparent" />
+            <line className="build-road-backdrop" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#0B2632" strokeWidth={w * 0.22} strokeLinecap="round" opacity={0.88} />
+            <line className="build-candidate-shape build-road-pulse" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.17} strokeLinecap="round" opacity={0.55} />
+            <line className="build-road-core" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#FFFCF2" strokeWidth={w * 0.065} strokeLinecap="round" opacity={0.82} />
+            {/* breiter unsichtbarer Klick-/Touch-Bereich */}
+            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="transparent" strokeWidth={w * 0.4} strokeLinecap="round" />
+          </g>
+        );
+      })}
+
+      {props.buildSelection?.kind === 'road' && props.buildColor && props.onConfirmBuild && props.onCancelBuild && (
+        <BuildTargetPreview
+          board={board}
+          selection={props.buildSelection}
+          color={props.buildColor}
+        />
+      )}
+
+      {/* Gebäude bleiben als Vordergrund sichtbar. Pointer-Ereignisse gehen durch
+          ihre reine Anzeige hindurch weiter an die Straßen-Bauplätze darunter. */}
       {Object.entries(buildings).map(([id, b]) => {
         const c = board.corners[Number(id)];
         if (!c) return null;
         return (
-          <g key={`b${id}`} data-corner={id}>
+          <g key={`b${id}`} data-corner={id} style={{ pointerEvents: 'none' }}>
             <Settlement x={c.x} y={c.y} w={w} color={colorOf(b.owner)} city={b.type === 'city'} />
           </g>
         );
@@ -219,37 +260,6 @@ export const Board = memo(function Board(props: BoardProps) {
         );
       })}
 
-      {/* Straßen-Bauplätze: saubere „Geister-Straße" — goldener Schimmer + heller Kern,
-          kein Filter/keine dunkle Kontur (die auf dunklen Feldern buggy wirkte). */}
-      {props.highlightEdges?.map((id, index) => {
-        const e = board.edges[id];
-        if (!e) return null;
-        const selected = props.buildSelection?.kind === 'road' && props.buildSelection.edge === id;
-        const label = props.buildKind ? `${buildLabel(props.buildKind)} an dieser Kante auswählen` : 'Baukante auswählen';
-        return (
-          <g
-            key={`he${id}`}
-            data-highlight-edge={id}
-            className={`build-candidate ${selected ? 'build-candidate-selected' : 'pulse-soft'}`}
-            role="button"
-            tabIndex={selected || (!props.buildSelection && index === 0) ? 0 : -1}
-            aria-label={label}
-            aria-pressed={selected}
-            style={{ cursor: 'pointer' }}
-            onClick={() => props.onEdge?.(id)}
-            onKeyDown={(event) => activateCandidate(event, () => props.onEdge?.(id), '[data-highlight-edge]')}
-          >
-            {/* Eigene Fläche am Kantenmittelpunkt hält auch senkrechte/waagerechte
-                SVG-Kanten als ausreichend großes Touch- und Testziel messbar. */}
-            <circle cx={(e.x1 + e.x2) / 2} cy={(e.y1 + e.y2) / 2} r={w * 0.2} fill="transparent" />
-            <line className="build-candidate-shape" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.15} strokeLinecap="round" opacity={0.4} />
-            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#FFF6E0" strokeWidth={w * 0.05} strokeLinecap="round" opacity={0.95} />
-            {/* breiter unsichtbarer Klick-/Touch-Bereich */}
-            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="transparent" strokeWidth={w * 0.4} strokeLinecap="round" />
-          </g>
-        );
-      })}
-
       {/* Siedlungs-/Stadt-Bauplätze: sauberer halbtransparenter Kreis mit hellem Rand
           (wie die Startplatzierung — klar, aber nicht überstrahlt). */}
       {props.highlightCorners?.map((id, index) => {
@@ -285,7 +295,7 @@ export const Board = memo(function Board(props: BoardProps) {
         );
       })}
 
-      {props.buildSelection && props.buildColor && props.onConfirmBuild && props.onCancelBuild && (
+      {props.buildSelection && props.buildSelection.kind !== 'road' && props.buildColor && props.onConfirmBuild && props.onCancelBuild && (
         <BuildTargetPreview
           board={board}
           selection={props.buildSelection}

@@ -1,8 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { PLAYER_COLORS, createGame, type Board as BoardT } from '@catan/shared';
+import { COSTS, PLAYER_COLORS, createGame, emptyResources, type Board as BoardT } from '@catan/shared';
 import { Board } from '../src/components/board/Board';
+import { CostDetails } from '../src/components/game/CostDetails';
 import {
   actionForBuildSelection,
   adjacentLandHexIds,
@@ -106,5 +107,54 @@ describe('Bauauswahl', () => {
     expect(roadHtml).not.toContain(`data-road="${board.edges[0].id}"`);
     expect(cityHtml).toContain('data-build-preview="city"');
     expect(cityHtml).toContain('aria-label="Stadt hier bauen"');
+  });
+
+  it('kennzeichnet ausreichende und tatsächlich fehlende Rohstoffmengen eindeutig', () => {
+    const resources = emptyResources();
+    resources.grain = 2;
+    resources.ore = 1;
+    const html = renderToStaticMarkup(createElement(CostDetails, { cost: COSTS.city, res: resources }));
+
+    expect(html).toContain('data-cost-resource="grain"');
+    expect(html).toContain('data-cost-resource="ore"');
+    expect(html).toMatch(/data-cost-resource="grain" data-cost-status="available"/);
+    expect(html).toMatch(/data-cost-resource="ore" data-cost-status="missing"/);
+    expect(html).toContain('2 fehlt');
+    expect(html).toContain('Getreide');
+    expect(html).toContain('Erz');
+  });
+
+  it('rendert Straßen-Baukanten mit eigenem Puls hinter vorhandenen Gebäuden', () => {
+    const board = testBoard();
+    const edge = board.edges[0];
+    const html = renderToStaticMarkup(createElement(Board, {
+      board,
+      buildings: { [edge.a]: { owner: 'p1', type: 'settlement' } },
+      roads: {},
+      robberHex: board.hexes.find((hex) => hex.terrain === 'D')?.id ?? 0,
+      colorOf: () => PLAYER_COLORS[0],
+      buildKind: 'road',
+      buildSelection: { kind: 'road', edge: edge.id },
+      buildColor: PLAYER_COLORS[0],
+      highlightEdges: [edge.id],
+      onEdge: () => undefined,
+      onConfirmBuild: () => undefined,
+      onCancelBuild: () => undefined,
+    }));
+
+    expect(html).toContain(`data-highlight-edge="${edge.id}"`);
+    expect(html).toContain('build-road-candidate');
+    expect(html).toContain('build-road-backdrop');
+    expect(html).toContain('build-road-pulse');
+    expect(html).toContain('build-road-core');
+    expect(html).toMatch(new RegExp(`data-corner="${edge.a}" style="pointer-events:none"`));
+
+    const candidateIndex = html.indexOf(`data-highlight-edge="${edge.id}"`);
+    const previewIndex = html.indexOf('data-build-target-preview="road"');
+    const buildingIndex = html.indexOf(`data-corner="${edge.a}"`);
+    expect(candidateIndex).toBeGreaterThanOrEqual(0);
+    expect(previewIndex).toBeGreaterThanOrEqual(0);
+    expect(buildingIndex).toBeGreaterThan(candidateIndex);
+    expect(buildingIndex).toBeGreaterThan(previewIndex);
   });
 });

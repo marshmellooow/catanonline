@@ -222,6 +222,25 @@
   stroke: #fff;
   filter: drop-shadow(0 0 5px rgba(235, 194, 94, 0.95));
 }
+.build-road-pulse {
+  filter:
+    drop-shadow(0 0 2px rgba(4, 19, 29, 0.95))
+    drop-shadow(0 0 5px rgba(235, 194, 94, 0.82));
+}
+.build-road-candidate:not(.build-candidate-selected) .build-road-pulse {
+  animation: buildRoadCandidatePulse 1.6s ease-in-out infinite;
+}
+.build-road-candidate:not(.build-candidate-selected) .build-road-core {
+  animation: buildRoadCorePulse 1.6s ease-in-out infinite;
+}
+@keyframes buildRoadCandidatePulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+@keyframes buildRoadCorePulse {
+  0%, 100% { opacity: 0.82; }
+  50% { opacity: 1; }
+}
 
 .build-target-preview,
 .build-target-ring,
@@ -346,12 +365,22 @@
   .build-adjacent-hex,
   .build-target-preview,
   .build-target-ring,
-  .build-confirm-overlay {
+  .build-confirm-overlay,
+  .build-road-pulse,
+  .build-road-core {
+    animation: none;
+  }
+  .build-road-candidate:not(.build-candidate-selected) .build-road-pulse,
+  .build-road-candidate:not(.build-candidate-selected) .build-road-core {
     animation: none;
   }
   .build-adjacent-hex {
     opacity: 0.2;
     will-change: auto;
+  }
+  .build-road-pulse,
+  .build-road-core {
+    opacity: 1;
   }
 }
 
@@ -548,6 +577,11 @@
 /* Bau-Kosten-Tooltip (Hover über Straße/Siedlung/Stadt/Karte) */
 .build-opt {
   display: inline-flex;
+  border-radius: 7px;
+}
+.build-opt:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
 }
 .build-opt button:disabled {
   pointer-events: none; /* Hover trifft den Wrapper-Span → Tooltip auch bei „nicht leistbar" */
@@ -579,10 +613,61 @@
   color: var(--text-2);
   margin-bottom: 5px;
 }
+.cost-pop-title.affordable {
+  color: #9ee7bd;
+}
+.cost-pop-title.missing {
+  color: #ffad9f;
+}
 .cost-pop-row {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 6px;
+}
+.cost-pop-resource {
+  min-width: 58px;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 5px 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+.cost-pop-resource.available {
+  color: #baf4d1;
+  background: rgba(53, 168, 101, 0.16);
+  border-color: rgba(112, 224, 157, 0.62);
+}
+.cost-pop-resource.missing {
+  color: #ffc0b5;
+  background: rgba(196, 57, 48, 0.2);
+  border-color: rgba(255, 126, 105, 0.82);
+}
+.cost-pop-resource .res-chip {
+  gap: 4px;
+}
+.cost-pop-resource .res-chip-swatch {
+  width: 18px !important;
+  height: 18px !important;
+}
+.cost-pop-resource.available .res-chip-swatch {
+  border-color: rgba(154, 246, 190, 0.95);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.42), 0 0 5px rgba(83, 211, 135, 0.45);
+}
+.cost-pop-resource.missing .res-chip-swatch {
+  border: 2px solid #ff8c78;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.28), 0 0 5px rgba(255, 100, 78, 0.5);
+}
+.cost-pop-resource-name {
+  color: var(--text);
+  font-size: 9px;
+  line-height: 1;
+}
+.cost-pop-resource-status {
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
 }
 @keyframes costPop {
   from {
@@ -590,6 +675,11 @@
   }
   to {
     opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cost-pop {
+    animation: none;
   }
 }
 
