@@ -29,6 +29,7 @@ import '../components/game/game.css';
 
 export function Game() {
   const game = useStore((s) => s.game);
+  const room = useStore((s) => s.room);
   const me = useStore((s) => s.playerId);
   const act = useStore((s) => s.act);
   const leaveRoom = useStore((s) => s.leaveRoom);
@@ -107,7 +108,12 @@ export function Game() {
   };
 
   const activeName = game.players.find((p) => p.id === game.activePlayer)?.name ?? '';
-  const activeDisconnected = game.players.find((p) => p.id === game.activePlayer && !p.connected && !p.isBot);
+  // Präsenz und temporäre Bot-Übernahme kommen live über RoomState. PublicState ist
+  // ein Spiel-Snapshot und wird bei einem reinen Disconnect nicht neu übertragen.
+  const activePresence = room?.players.find((p) => p.id === game.activePlayer);
+  const activeDisconnected = activePresence
+    ? !activePresence.connected && !activePresence.isBot
+    : !!game.players.find((p) => p.id === game.activePlayer && !p.connected && !p.isBot);
   const waitingPause = !!activeDisconnected && (game.phase !== 'discard');
 
   // Mehr als 7 Rohstoffkarten → bei einer 7 drohen Verluste. Zentrale Warnung anzeigen

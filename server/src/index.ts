@@ -6,6 +6,9 @@ import type { ClientMsg, ServerMsg } from '@catan/shared';
 // Eigene Env-Variable, damit ein generisches PORT (z. B. vom Dev-/Preview-Harness
 // für den Vite-Client gesetzt) den WS-Server nicht auf denselben Port umleitet.
 const PORT = Number(process.env.CATAN_SERVER_PORT ?? 8787);
+// Optional nur an ein bestimmtes Interface binden (E2E: 127.0.0.1). Ohne
+// Variable bleibt das bisherige Produktionsverhalten auf allen Interfaces bestehen.
+const HOST = process.env.CATAN_SERVER_HOST;
 
 // Heartbeat / Toleranz für schlechtes Netz: lieber öfter pingen (hält NAT/Proxy-Mappings
 // offen) und erst nach mehreren verpassten Pongs trennen (ein einzelner Aussetzer bei
@@ -37,7 +40,7 @@ interface Conn {
   missed: number; // aufeinanderfolgende verpasste Pongs (Heartbeat-Toleranz)
 }
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer(HOST ? { port: PORT, host: HOST } : { port: PORT });
 const hooks = {
   onEmpty(code: string) {
     const room = rooms.get(code);
@@ -75,7 +78,7 @@ wss.on('connection', (ws: WebSocket) => {
   ws.on('close', () => {
     if (conn.code && conn.playerId) {
       const room = rooms.get(conn.code);
-      room?.handleDisconnect(conn.playerId);
+      room?.handleDisconnect(conn.playerId, ws);
     }
   });
   ws.on('error', () => {});

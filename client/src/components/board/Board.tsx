@@ -109,7 +109,11 @@ export const Board = memo(function Board(props: BoardProps) {
       {Object.entries(roads).map(([id, r]) => {
         const e = board.edges[Number(id)];
         if (!e) return null;
-        return <RoadPiece key={`r${id}`} x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} w={w} color={colorOf(r.owner)} />;
+        return (
+          <g key={`r${id}`} data-road={id}>
+            <RoadPiece x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} w={w} color={colorOf(r.owner)} />
+          </g>
+        );
       })}
 
       {/* Gebäude */}
@@ -142,7 +146,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const by = hex.y + hex.h * 0.63 - w * 0.2; // über der Zahl (Zahl-Chip bei 0.63h)
         const r = w * 0.11;
         return (
-          <g key={`hh${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onHex?.(id)}>
+          <g key={`hh${id}`} data-highlight-hex={id} style={{ cursor: 'pointer' }} onClick={() => props.onHex?.(id)}>
             {/* unsichtbare Klickfläche über dem ganzen Feld */}
             <polygon points={hexVerts(hex).map(([x, y]) => `${x},${y}`).join(' ')} fill="transparent" />
             {/* Farb-Badge: langsam pulsierend (Scale), Farbe bleibt voll deckend */}
@@ -168,7 +172,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const e = board.edges[id];
         if (!e) return null;
         return (
-          <g key={`he${id}`} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onEdge?.(id)}>
+          <g key={`he${id}`} data-highlight-edge={id} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onEdge?.(id)}>
             <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.15} strokeLinecap="round" opacity={0.4} />
             <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#FFF6E0" strokeWidth={w * 0.05} strokeLinecap="round" opacity={0.95} />
             {/* breiter unsichtbarer Klick-/Touch-Bereich */}
@@ -183,7 +187,7 @@ export const Board = memo(function Board(props: BoardProps) {
         const c = board.corners[id];
         if (!c) return null;
         return (
-          <g key={`hc${id}`} style={{ cursor: 'pointer' }} onClick={() => props.onCorner?.(id)}>
+          <g key={`hc${id}`} data-highlight-corner={id} style={{ cursor: 'pointer' }} onClick={() => props.onCorner?.(id)}>
             <circle cx={c.x} cy={c.y} r={w * 0.22} fill="transparent" />
             <circle
               cx={c.x}

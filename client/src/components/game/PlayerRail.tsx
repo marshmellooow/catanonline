@@ -21,17 +21,22 @@ export function PlayerRail() {
       <div className="rail-list">
         {game.order.map((pid) => {
           const p = game.players.find((x) => x.id === pid)!;
+          // RoomState ist für Präsenz und temporäre Bot-Übernahmen autoritativ;
+          // PublicState kann zwischen zwei Spielaktionen einen älteren Stand tragen.
+          const presence = room?.players.find((x) => x.id === pid);
+          const connected = presence?.connected ?? p.connected;
+          const isBot = presence?.isBot ?? p.isBot;
           const col = PLAYER_COLORS[p.colorIndex];
           const active = game.activePlayer === pid;
           const latency = ping[pid];
-          const connDot = !p.connected ? 'gone' : latency !== undefined && latency > 400 ? 'away' : 'online';
+          const connDot = !connected ? 'gone' : latency !== undefined && latency > 400 ? 'away' : 'online';
           return (
             <div key={pid} data-player-row={pid} className={`rail-player ${active ? 'active' : ''}`} style={active ? { borderColor: col.c } : undefined}>
               <div className="swatch" style={{ background: col.c }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row gap-2" style={{ justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    {p.name}{p.isBot && <Bot size={13} className="muted" />}
+                    {p.name}{isBot && <Bot size={13} className="muted" />}
                   </span>
                   <span className="num" style={{ fontSize: 20, color: 'var(--gold)' }}>{p.victoryPoints}</span>
                 </div>
@@ -42,8 +47,8 @@ export function PlayerRail() {
                   <span className="stat" title={p.longestRoad ? 'Längste Straße (Auszeichnung, +2 SP)' : 'Längste eigene Straße'} style={p.longestRoad ? { color: 'var(--gold)', fontWeight: 700 } : undefined}><Route size={14} /> {p.roadLength}</span>
                 </div>
               </div>
-              <div className={`status-dot ${connDot}`} title={p.connected ? 'verbunden' : 'getrennt'} />
-              {isHost && !p.connected && !p.isBot && game.phase !== 'finished' && (
+              <div className={`status-dot ${connDot}`} title={connected ? 'verbunden' : 'getrennt'} />
+              {isHost && !connected && !isBot && game.phase !== 'finished' && (
                 <button className="btn btn-sm btn-ghost" style={{ padding: '2px 6px' }} onClick={() => sendMsg({ t: 'replaceWithBot', playerId: pid })} title="Durch Bot ersetzen">
                   Bot
                 </button>

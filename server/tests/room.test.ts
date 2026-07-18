@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { Room } from '../src/room.js';
-import { GRACE_MS, EMPTY_ROOM_TTL_MS, AUTO_ROLL_MS, BOT_MOVE_DELAY_MS, BOT_FAST_MOVE_DELAY_MS, BOT_TRADE_TIMEOUT_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges } from '@catan/shared';
+import { GRACE_MS, EMPTY_ROOM_TTL_MS, AUTO_ROLL_MS, BOT_MOVE_DELAY_MS, BOT_FAST_MOVE_DELAY_MS, BOT_TRADE_TIMEOUT_MS, DEFAULT_TURN_SECONDS, validSettlementCorners, validRoadEdges, type ServerMsg } from '@catan/shared';
 
 // Stub-Socket: readyState OPEN(1), send no-op — Broadcasts crashen nicht.
 const sock = () => ({ readyState: 1, send() {} }) as never;
@@ -92,6 +92,73 @@ describe('Room-Lifecycle: Leave / Reconnect / Host', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('Reconnect im eigenen Startzug hält Präsenz, Sitz und Aktion konsistent', () => {
+    const { room } = startedGame(2);
+    const active = room.game!.order[room.game!.activeIndex];
+    const roomPlayer = room.findPlayer(active)!;
+    const gamePlayer = room.game!.players.find((p) => p.id === active)!;
+
+    room.handleDisconnect(active);
+    expect(roomPlayer.connected).toBe(false);
+    expect(gamePlayer.connected).toBe(false);
+    expect(room.game!.order[room.game!.activeIndex]).toBe(active);
+
+    const messages: ServerMsg[] = [];
+    const recordingSocket = {
+      readyState: 1,
+      send(payload: string) { messages.push(JSON.parse(payload) as ServerMsg); },
+    } as never;
+    expect(room.reattach(active, recordingSocket)).toBe(true);
+    expect(roomPlayer.connected).toBe(true);
+    expect(gamePlayer.connected).toBe(true);
+
+    const gameState = messages.find((msg): msg is Extract<ServerMsg, { t: 'gameState' }> => msg.t === 'gameState');
+    expect(gameState?.state.you).toBe(active);
+    expect(gameState?.state.activePlayer).toBe(active);
+    expect(gameState?.state.players.find((p) => p.id === active)?.connected).toBe(true);
+
+    const corner = validSettlementCorners(room.game!, active, true)[0];
+    room.handleAction(active, { type: 'placeSetupSettlement', corner });
+    expect(room.game!.phase).toBe('setupRoad');
+  });
+
+  it('ignoriert ein verspätetes close des alten Sockets nach erfolgreichem Reattach', () => {
+    const { room } = startedGame(2);
+    const active = room.game!.order[room.game!.activeIndex];
+    const player = room.findPlayer(active)!;
+    const oldSocket = player.socket!;
+    const newSocket = sock();
+
+    expect(room.reattach(active, newSocket)).toBe(true);
+    room.handleDisconnect(active, oldSocket);
+    expect(player.socket).toBe(newSocket);
+    expect(player.connected).toBe(true);
+    expect(room.game!.players.find((p) => p.id === active)?.connected).toBe(true);
+
+    const corner = validSettlementCorners(room.game!, active, true)[0];
+    room.handleAction(active, { type: 'placeSetupSettlement', corner });
+    expect(room.game!.phase).toBe('setupRoad');
+  });
+
+  it('entfernt getrennte Menschen vor einer Rematch-Lobby — mit und ohne Bot-Übernahme', () => {
+    const { room, players } = startedGame(4);
+    const takenOver = players[1];
+    const inGrace = players[2];
+    room.removePlayer(takenOver.id);
+    room.handleDisconnect(inGrace.id);
+    expect(room.findPlayer(takenOver.id)?.auto).toBe(true);
+    expect(room.findPlayer(inGrace.id)?.auto).toBe(false);
+    room.phase = 'finished';
+
+    room.returnToLobby(players[0].id);
+    expect(room.phase).toBe('lobby');
+    expect(room.findPlayer(takenOver.id)).toBeUndefined();
+    expect(room.findPlayer(inGrace.id)).toBeUndefined();
+    expect(room.players.map((p) => p.seat)).toEqual([0, 1]);
+    expect(room.toRoomState().players.some((p) => p.id === takenOver.id || p.id === inGrace.id)).toBe(false);
+    expect(room.toRoomState().players.filter((p) => !p.isBot).every((p) => !p.ready)).toBe(true);
   });
 
   it('Host-Disconnect im Spiel: Host migriert sofort zum verbundenen Menschen', () => {
@@ -393,19 +460,49 @@ describe('Abwurf-Countdown (Auto-Abwerfen nach einer 7)', () => {
     }
   });
 
-  it('Reconnect waehrend der Abwurf-Frist bewaffnet den Timer neu → kein Stall', () => {
+  it('Reconnect während der Abwurf-Frist bewaffnet den Timer neu → kein Stall', () => {
     vi.useFakeTimers();
     try {
       const { room, g, pid, p } = discardSetup(20, 4); // Frist 10s
-      // Abwerfer trennt Verbindung; eine Zustandsaenderung waehrend er weg ist nullt die Frist
+      // Abwerfer trennt Verbindung; eine Zustandsänderung während er weg ist nullt die Frist
       // (pendingDiscardHumans leer → clearDiscardTimer). Ohne Re-Arm bei reattach bliebe es dabei.
       room.handleDisconnect(pid);
       (room as unknown as { scheduleTimers(): void }).scheduleTimers();
-      // Danach kommt er zurueck — reattach MUSS die Frist neu bewaffnen, sonst Dauer-Stall in 'discard'.
+      // Danach kommt er zurück — reattach MUSS die Frist neu bewaffnen, sonst Dauer-Stall in 'discard'.
       room.reattach(pid, sock());
       vi.advanceTimersByTime(10_000 + 500);
       expect(g.mustDiscard[pid]).toBeUndefined(); // automatisch abgeworfen statt Dauer-Stall
       expect(handTotal(p.resources)).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('wirft für mehrere säumige Menschen mit derselben Frist vollständig ab', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, players } = lobby(3);
+      players.forEach((p) => room.setReady(p.id, true));
+      room.setTurnTime(players[0].id, 20);
+      room.startGame(players[0].id);
+      driveSetup(room);
+      const g = room.game!;
+      const first = g.players.find((p) => p.id === players[1].id)!;
+      const second = g.players.find((p) => p.id === players[2].id)!;
+      first.resources = { wood: 8, brick: 0, wool: 0, grain: 0, ore: 0 };
+      second.resources = { wood: 0, brick: 8, wool: 0, grain: 0, ore: 0 };
+      g.phase = 'discard';
+      g.mustDiscard = { [first.id]: 4, [second.id]: 4 };
+      const bankBefore = { ...g.bank };
+      (room as unknown as { scheduleTimers(): void }).scheduleTimers();
+
+      vi.advanceTimersByTime(10_000 + 200);
+      expect(g.mustDiscard).toEqual({});
+      expect(g.phase).toBe('moveRobber');
+      expect(first.resources.wood).toBe(4);
+      expect(second.resources.brick).toBe(4);
+      expect(g.bank.wood - bankBefore.wood).toBe(4);
+      expect(g.bank.brick - bankBefore.brick).toBe(4);
     } finally {
       vi.useRealTimers();
     }

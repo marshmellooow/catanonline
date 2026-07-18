@@ -4,3 +4,6 @@ dist/
 .DS_Store
 .env
 coverage/
+playwright-report/
+test-results/
+blob-report/

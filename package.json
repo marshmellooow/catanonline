@@ -1,7 +1,7 @@
 {
   "name": "catan-online",
   "private": true,
-  "version": "3.10.2",
+  "version": "3.10.3",
   "type": "module",
   "workspaces": [
     "shared",
@@ -13,8 +13,13 @@
     "build": "npm -w @catan/shared run build && npm -w @catan/client run build && npm -w @catan/server run build",
     "start": "npm -w @catan/server run start",
     "test": "npm -w @catan/shared run test && npm -w @catan/server run test && npm -w @catan/client run test",
-    "typecheck": "npm -w @catan/shared exec tsc -- -p tsconfig.test.json && npm -w @catan/server exec tsc -- -p tsconfig.test.json && npm -w @catan/client exec tsc -- -p tsconfig.test.json",
-    "gate": "npm run test && npm run typecheck && npm run build",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e:install:ci": "playwright install --with-deps chromium",
+    "typecheck": "npm -w @catan/shared exec tsc -- -p tsconfig.test.json && npm -w @catan/server exec tsc -- -p tsconfig.test.json && npm -w @catan/client exec tsc -- -p tsconfig.test.json && npm exec tsc -- -p tsconfig.e2e.json",
+    "gate": "npm run test && npm run typecheck && npm run build && npm run test:e2e",
     "version:print": "node scripts/bump-version.mjs --print",
     "bump": "node scripts/bump-version.mjs",
     "bump:patch": "node scripts/bump-version.mjs patch",
@@ -22,6 +27,9 @@
     "bump:major": "node scripts/bump-version.mjs major"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.1",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.9.3"
   }
 }

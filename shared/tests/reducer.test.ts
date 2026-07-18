@@ -336,6 +336,32 @@ describe('Abwerfen bei 7', () => {
     expect(s.players[1].resources.wood).toBe(4);
     expect(s.phase).toBe('moveRobber');
   });
+
+  it('wartet bei mehreren Abwerfern, bis wirklich alle fertig sind', () => {
+    const s = newGame(3);
+    driveSetup(s);
+    const first = s.players[1];
+    const second = s.players[2];
+    first.resources = { wood: 8, brick: 0, wool: 0, grain: 0, ore: 0 };
+    second.resources = { wood: 0, brick: 8, wool: 0, grain: 0, ore: 0 };
+    s.phase = 'discard';
+    s.mustDiscard = { [first.id]: 4, [second.id]: 4 };
+    const bankBefore = { ...s.bank };
+
+    ok(applyAction(s, first.id, { type: 'discard', resources: { wood: 4 } }));
+    expect(s.phase).toBe('discard');
+    expect(s.mustDiscard[first.id]).toBeUndefined();
+    expect(s.mustDiscard[second.id]).toBe(4);
+    err(applyAction(s, first.id, { type: 'discard', resources: { wood: 1 } }));
+
+    ok(applyAction(s, second.id, { type: 'discard', resources: { brick: 4 } }));
+    expect(s.mustDiscard).toEqual({});
+    expect(s.phase).toBe('moveRobber');
+    expect(first.resources.wood).toBe(4);
+    expect(second.resources.brick).toBe(4);
+    expect(s.bank.wood - bankBefore.wood).toBe(4);
+    expect(s.bank.brick - bankBefore.brick).toBe(4);
+  });
 });
 
 describe('Sieg', () => {

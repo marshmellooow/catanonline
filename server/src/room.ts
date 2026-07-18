@@ -107,6 +107,11 @@ export class Room {
   private connectedHumans(): RoomPlayer[] {
     return this.players.filter((p) => p.connected && !p.isBot);
   }
+  /** Hält den serialisierten Spielzustand bei reinen Präsenzwechseln konsistent. */
+  private syncGamePresence(player: RoomPlayer) {
+    const gamePlayer = this.game?.players.find((p) => p.id === player.id);
+    if (gamePlayer) gamePlayer.connected = player.connected;
+  }
 
   private send(socket: WebSocket | null, msg: ServerMsg) {
     if (socket && socket.readyState === OPEN) {
@@ -165,6 +170,7 @@ export class Room {
       p.connected = false;
       p.auto = true;
       p.socket = null;
+      this.syncGamePresence(p);
       this.migrateHostIfNeeded();
       this.scheduleTimers();
     }
@@ -184,6 +190,7 @@ export class Room {
       p.socket = socket;
       p.connected = true;
       p.auto = false; // Mensch übernimmt wieder
+      this.syncGamePresence(p);
       this.cancelEmptyTimer();
       // Timer neu planen, BEVOR der Spielstand rausgeht: ein wieder verbundener Mensch, der
       // noch abwerfen muss, bekommt so seinen Abwurf-Countdown zurück (sonst Stall) und die
@@ -203,11 +210,16 @@ export class Room {
     return false;
   }
 
-  handleDisconnect(playerId: string) {
+  handleDisconnect(playerId: string, closingSocket?: WebSocket) {
     const p = this.findPlayer(playerId);
     if (p) {
+      // Ein alter Socket kann erst schließen, nachdem dieselbe Sitzung bereits über
+      // einen neuen Socket reattacht wurde. Dieses verspätete close darf die neue
+      // Verbindung weder nullen noch erneut eine Grace-Frist starten.
+      if (closingSocket && p.socket !== closingSocket) return;
       p.socket = null;
       p.connected = false;
+      this.syncGamePresence(p);
       if (this.phase === 'lobby') {
         // sofort Sitz freigeben
         this.players = this.players.filter((x) => x.id !== playerId);
@@ -237,6 +249,7 @@ export class Room {
     }
     const spec = this.spectators.find((s) => s.id === playerId);
     if (spec) {
+      if (closingSocket && spec.socket !== closingSocket) return;
       this.spectators = this.spectators.filter((s) => s.id !== playerId);
       this.checkEmpty();
     }
@@ -348,6 +361,7 @@ export class Room {
       target.connected = false;
       target.auto = true;
       target.socket = null;
+      this.syncGamePresence(target);
       this.scheduleTimers();
     }
     this.broadcastRoom();
@@ -436,7 +450,18 @@ export class Room {
     this.turnTimerPlayerId = null;
     this.game = null;
     this.phase = 'lobby';
-    for (const p of this.players) if (!p.isBot) p.ready = false;
+    // In der Lobby werden getrennte Menschen regulär sofort entfernt. Dasselbe gilt
+    // beim Rematch für Sitze, die im alten Spiel bereits dauerhaft übernommen wurden;
+    // sonst sähen sie wie Bots aus, ließen sich aber weder entfernen noch bereit setzen.
+    for (const p of this.players) {
+      if (!p.isBot && !p.connected && p.disconnectTimer) clearTimeout(p.disconnectTimer);
+    }
+    this.players = this.players.filter((p) => p.isBot || p.connected);
+    this.players.forEach((p, i) => {
+      p.seat = i;
+      p.ready = p.isBot;
+    });
+    this.migrateHostIfNeeded();
     this.broadcastRoom();
   }
 

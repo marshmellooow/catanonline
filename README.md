@@ -22,11 +22,21 @@ zusammen. Dann im Browser öffnen:
 Weitere Skripte:
 
 ```bash
-npm test          # Unit-Tests der Spiellogik (shared)
+npm test          # Shared-, Server- und Client-Tests
+npm run test:e2e  # echter Zwei-Browser-Ablauf inkl. Disconnect/Reconnect
 npm run gate      # alle Tests + Typecheck aller Pakete + Produktions-Build
 npm run build     # Produktions-Build aller Pakete
 npm start         # nur den Server starten (nach build)
 ```
+
+Vor dem ersten E2E-Lauf einmal den reproduzierbaren Chromium-Testbrowser laden:
+
+```bash
+npm run test:e2e:install
+```
+
+In einer Linux-CI installiert `npm run test:e2e:install:ci` zusätzlich die benötigten
+Systembibliotheken.
 
 **Ports:** Client 5173, WebSocket-Server 8787. Der Server-Port lässt sich per
 Umgebungsvariable `CATAN_SERVER_PORT` überschreiben (bewusst nicht `PORT`, damit ein
