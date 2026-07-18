@@ -74,6 +74,7 @@ export function PanZoom({ children }: { children: ReactNode }) {
     const sx = ((scale - 1) * ox + tx) / k;
     const sy = ((scale - 1) * oy + ty) / k;
     layer.setAttribute('transform', `translate(${sx} ${sy}) scale(${scale})`);
+    c.dispatchEvent(new Event('catan:board-transform'));
   };
 
   const apply = (animate = false) => {

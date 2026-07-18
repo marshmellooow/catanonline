@@ -82,13 +82,62 @@ test('stellt einen eigenen Zug nach Disconnect ohne Sitz- oder Aktionsverlust wi
 
     const settlementChoices = reconnected.locator('[data-highlight-corner]');
     await expect(settlementChoices.first()).toBeVisible();
+    const cornerId = await settlementChoices.first().getAttribute('data-highlight-corner');
+    expect(cornerId).toBeTruthy();
+    const observerCornersBefore = await observerPage.locator('[data-corner]').count();
     await settlementChoices.first().click();
+    await expect(reconnected.locator('.phase-pill.mine')).toHaveText('Setze deine Startsiedlung');
+    await expect(reconnected.locator('[data-build-preview="settlement"]')).toHaveAttribute('data-preview-corner', cornerId!);
+    const adjacentHexes = reconnected.locator('[data-adjacent-hex]');
+    await expect(adjacentHexes).not.toHaveCount(0);
+    const pulseAnimation = await adjacentHexes.first().evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        name: style.animationName,
+        duration: style.animationDuration,
+        iterations: style.animationIterationCount,
+      };
+    });
+    expect(pulseAnimation).toEqual({
+      name: 'buildAdjacentPulse',
+      duration: '2.6s',
+      iterations: 'infinite',
+    });
+    await reconnected.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(adjacentHexes.first()).toHaveCSS('animation-name', 'none');
+    await expect(adjacentHexes.first()).toHaveCSS('opacity', '0.2');
+    await reconnected.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect(observerPage.locator('[data-corner]')).toHaveCount(observerCornersBefore);
+
+    await reconnected.getByRole('button', { name: 'Auswahl abbrechen' }).click();
+    await expect(reconnected.locator('[data-build-preview]')).toHaveCount(0);
+    await expect(reconnected.locator('[data-adjacent-hex]')).toHaveCount(0);
+    await expect(reconnected.locator('.phase-pill.mine')).toHaveText('Setze deine Startsiedlung');
+    await expect(reconnected.locator(`[data-highlight-corner="${cornerId}"]`)).toBeFocused();
+
+    await reconnected.keyboard.press('Enter');
+    await reconnected.getByRole('button', { name: 'Siedlung hier bauen' }).click();
     await expect(reconnected.locator('.phase-pill.mine')).toHaveText('Setze deine Startstraße');
+    await expect(observerPage.locator(`[data-corner="${cornerId}"]`)).toHaveCount(1);
+
     const roadChoices = reconnected.locator('[data-highlight-edge]');
     await expect(roadChoices.first()).toBeVisible();
+    await expect(roadChoices.first()).toBeFocused();
+    const edgeId = await roadChoices.first().getAttribute('data-highlight-edge');
+    expect(edgeId).toBeTruthy();
+    const observerRoadsBefore = await observerPage.locator('[data-road]').count();
     await roadChoices.first().click();
-    await expect(observerPage.locator('[data-corner]')).toHaveCount(1);
-    await expect(observerPage.locator('[data-road]')).toHaveCount(1);
+    await expect(reconnected.locator('.phase-pill.mine')).toHaveText('Setze deine Startstraße');
+    await expect(reconnected.locator('[data-build-preview="road"]')).toHaveAttribute('data-preview-edge', edgeId!);
+    await expect(reconnected.locator('[data-adjacent-hex]')).toHaveCount(0);
+    await expect(observerPage.locator('[data-road]')).toHaveCount(observerRoadsBefore);
+    await reconnected.keyboard.press('Escape');
+    await expect(reconnected.locator('[data-build-preview]')).toHaveCount(0);
+    await expect(reconnected.locator(`[data-highlight-edge="${edgeId}"]`)).toBeFocused();
+    await reconnected.keyboard.press('Enter');
+    await expect(reconnected.getByRole('button', { name: 'Straße hier bauen' })).toBeFocused();
+    await reconnected.keyboard.press('Enter');
+    await expect(observerPage.locator(`[data-road="${edgeId}"]`)).toHaveCount(1);
 
     expect(problems).toEqual([]);
   } finally {

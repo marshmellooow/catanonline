@@ -186,6 +186,175 @@
   justify-content: center;
 }
 
+/* ---------- Bauauswahl: Ziel, angrenzende Felder und Bestätigung ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.build-adjacent-hex {
+  fill: #04131d;
+  opacity: 0.13;
+  animation: buildAdjacentPulse 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: opacity;
+  pointer-events: none;
+}
+@keyframes buildAdjacentPulse {
+  0%, 100% { opacity: 0.13; }
+  50% { opacity: 0.28; }
+}
+
+.build-candidate {
+  outline: none;
+}
+.build-candidate-selected .build-candidate-shape {
+  opacity: 0.92;
+  filter: drop-shadow(0 0 5px rgba(255, 246, 224, 0.9));
+}
+.build-candidate:focus-visible .build-candidate-shape {
+  stroke: #fff;
+  filter: drop-shadow(0 0 5px rgba(235, 194, 94, 0.95));
+}
+
+.build-target-preview,
+.build-target-ring,
+.build-confirm-overlay {
+  animation: buildPreviewIn 0.18s ease-out both;
+}
+
+.build-confirm-overlay {
+  position: fixed;
+  z-index: 445;
+  height: 100px;
+  pointer-events: auto;
+  isolation: isolate;
+}
+.build-confirm-screen-stem {
+  position: absolute;
+  left: var(--build-stem-x);
+  width: 3px;
+  height: var(--build-stem-height);
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #fff6e0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 0;
+}
+.build-confirm-overlay.above .build-confirm-screen-stem {
+  top: 100%;
+}
+.build-confirm-overlay.below .build-confirm-screen-stem {
+  bottom: 100%;
+}
+.build-confirm-main {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 34px;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 9px 9px 13px;
+  border: 2px solid var(--gold);
+  border-radius: 17px;
+  background: rgba(12, 38, 52, 0.97);
+  color: var(--text);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.46), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  text-align: left;
+  touch-action: manipulation;
+}
+.build-confirm-main:hover {
+  background: rgba(17, 51, 67, 0.99);
+  border-color: #f5d77e;
+}
+.build-confirm-main:focus-visible,
+.build-confirm-cancel:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+.build-confirm-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.build-confirm-copy strong {
+  font-family: 'Marcellus', serif;
+  font-size: 14px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.build-confirm-copy small {
+  color: var(--text-2);
+  font-size: 10px;
+  line-height: 1.1;
+}
+.build-confirm-piece {
+  width: 56px;
+  height: 62px;
+  overflow: visible;
+}
+.build-confirm-check {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid #d9ffe8;
+  background: #2d9b66;
+  color: #fff;
+}
+.build-confirm-cancel {
+  position: absolute;
+  z-index: 2;
+  top: -18px;
+  right: -18px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #fff6e0;
+  background: #183947;
+  color: #fff6e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.build-confirm-cancel:hover {
+  background: #275163;
+}
+@keyframes buildPreviewIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-adjacent-hex,
+  .build-target-preview,
+  .build-target-ring,
+  .build-confirm-overlay {
+    animation: none;
+  }
+  .build-adjacent-hex {
+    opacity: 0.2;
+    will-change: auto;
+  }
+}
+
 /* ---------- Brett Pinch-Zoom / Pan ---------- */
 .panzoom {
   position: relative;
@@ -773,6 +942,11 @@
   flex-wrap: nowrap;
   overflow-x: auto;
   min-height: 44px;
+}
+.build-confirm-hint {
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
 }
 /* Schiebt „Zug beenden" auf dem Desktop nach rechts; auf Mobil ausgeblendet. */
 .action-spacer {

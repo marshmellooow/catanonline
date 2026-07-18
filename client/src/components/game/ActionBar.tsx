@@ -5,8 +5,7 @@ import { COSTS, canAfford, type ResourceCounts } from '@catan/shared';
 import { Dices, Check, X } from '../../icons';
 import { RESOURCE_ORDER } from './ui';
 import { ResChip } from './ResChip';
-
-export type BuildIntent = 'road' | 'settlement' | 'city' | null;
+import type { BuildIntent } from '../board/buildSelectionLogic';
 
 /** Kosten-Tooltip: pro benötigtem Rohstoff ein Chip mit Anzahl; vorhanden = farbig, fehlend = ausgegraut. */
 function CostPop({ cost, res, anchor }: { cost: Partial<ResourceCounts>; res: ResourceCounts; anchor: DOMRect }) {
@@ -128,6 +127,7 @@ export function ActionBar({
         <BuildButton label="Stadt" cost={COSTS.city} res={res} active={buildIntent === 'city'} disabled={!canBuyCity} onClick={() => toggle('city')} />
         <DevCardBuyButton res={res} disabled={!canBuyDev} onBuy={() => act({ type: 'buyDevCard' })} />
         <button className="btn btn-ghost" onClick={onTrade}>Handeln</button>
+        {buildIntent && <span className="build-confirm-hint">Bauplatz wählen und Vorschau bestätigen.</span>}
         <div className="action-spacer" />
         <button className="btn btn-green" onClick={() => { setBuildIntent(null); act({ type: 'endTurn' }); }}>Zug beenden</button>
       </div>
@@ -137,7 +137,7 @@ export function ActionBar({
   if (game.phase === 'roadBuilding') {
     return (
       <div className="action-bar">
-        <span className="marcellus">Straßenbau: {game.roadBuildingLeft} Straße(n) übrig — auf dem Brett platzieren.</span>
+        <span className="marcellus">Straßenbau: {game.roadBuildingLeft} Straße(n) übrig — Kante wählen und Vorschau bestätigen.</span>
       </div>
     );
   }
@@ -169,7 +169,7 @@ export function ActionBar({
   if (game.phase === 'setupSettlement') {
     return (
       <div className="action-bar">
-        <span className="marcellus">Startsiedlung setzen — tippe auf eine hervorgehobene Ecke.</span>
+        <span className="marcellus">Startsiedlung setzen — Baupunkt wählen und Vorschau bestätigen.</span>
       </div>
     );
   }
@@ -177,7 +177,7 @@ export function ActionBar({
   if (game.phase === 'setupRoad') {
     return (
       <div className="action-bar">
-        <span className="marcellus">Startstraße setzen — tippe auf eine hervorgehobene Kante.</span>
+        <span className="marcellus">Startstraße setzen — Kante wählen und Vorschau bestätigen.</span>
       </div>
     );
   }

@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { Board } from '../components/board/Board';
+import {
+  actionForBuildSelection,
+  adjacentLandHexIds,
+  buildKindForContext,
+  buildLabel,
+  selectCornerBuild,
+  selectEdgeBuild,
+  type BuildIntent,
+  type BuildSelection,
+} from '../components/board/buildSelectionLogic';
 import { PanZoom } from '../components/board/PanZoom';
 import { PlayerRail } from '../components/game/PlayerRail';
 import { Hand } from '../components/game/Hand';
-import { ActionBar, type BuildIntent } from '../components/game/ActionBar';
+import { ActionBar } from '../components/game/ActionBar';
 import { Dice } from '../components/game/Dice';
 import { DiscardDialog } from '../components/game/DiscardDialog';
 import { TradeDialog } from '../components/game/TradeDialog';
@@ -35,6 +45,8 @@ export function Game() {
   const leaveRoom = useStore((s) => s.leaveRoom);
   const uiScale = useStore((s) => s.uiScale);
   const [buildIntent, setBuildIntent] = useState<BuildIntent>(null);
+  const [buildSelection, setBuildSelection] = useState<BuildSelection | null>(null);
+  const focusAfterConfirmedBuild = useRef<typeof game>(null);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [devPrompt, setDevPrompt] = useState<'yearOfPlenty' | 'monopoly' | null>(null);
   // Chat von Beginn an offen (manuell einklappbar). Auf schmalen Screens (Mobil) zu,
@@ -76,20 +88,43 @@ export function Game() {
   }, [game, me, buildIntent]);
 
   const onCorner = useCallback((id: number) => {
-    if (!game) return;
-    if (game.phase === 'setupSettlement') act({ type: 'placeSetupSettlement', corner: id });
-    else if (game.phase === 'main' && buildIntent === 'settlement') { act({ type: 'buildSettlement', corner: id }); setBuildIntent(null); }
-    else if (game.phase === 'main' && buildIntent === 'city') { act({ type: 'buildCity', corner: id }); setBuildIntent(null); }
-  }, [game, buildIntent, act]);
+    if (!game || !highlights.corners.includes(id)) return;
+    const next = selectCornerBuild(game.phase, buildIntent, id);
+    if (next) setBuildSelection(next);
+  }, [game, buildIntent, highlights.corners]);
   const onEdge = useCallback((id: number) => {
-    if (!game) return;
-    if (game.phase === 'setupRoad') act({ type: 'placeSetupRoad', edge: id });
-    else if (game.phase === 'roadBuilding') act({ type: 'buildRoad', edge: id });
-    else if (game.phase === 'main' && buildIntent === 'road') { act({ type: 'buildRoad', edge: id }); setBuildIntent(null); }
-  }, [game, buildIntent, act]);
+    if (!game || !highlights.edges.includes(id)) return;
+    const next = selectEdgeBuild(game.phase, buildIntent, id);
+    if (next) setBuildSelection(next);
+  }, [game, buildIntent, highlights.edges]);
   const onHex = useCallback((id: number) => {
     if (game?.phase === 'moveRobber') act({ type: 'moveRobber', hex: id });
   }, [game, act]);
+
+  const confirmBuild = useCallback(() => {
+    if (!game || !buildSelection) return;
+    const targetIsValid = buildSelection.kind === 'road'
+      ? highlights.edges.includes(buildSelection.edge)
+      : highlights.corners.includes(buildSelection.corner);
+    const action = targetIsValid ? actionForBuildSelection(game.phase, buildIntent, buildSelection) : null;
+    if (!action) {
+      setBuildSelection(null);
+      return;
+    }
+    focusAfterConfirmedBuild.current = game;
+    act(action);
+    if (game.phase === 'main') setBuildIntent(null);
+    setBuildSelection(null);
+  }, [game, buildIntent, buildSelection, highlights.corners, highlights.edges, act]);
+
+  const cancelBuild = useCallback(() => {
+    if (!buildSelection) return;
+    const selector = buildSelection.kind === 'road'
+      ? `[data-highlight-edge="${buildSelection.edge}"]`
+      : `[data-highlight-corner="${buildSelection.corner}"]`;
+    setBuildSelection(null);
+    requestAnimationFrame(() => document.querySelector<SVGGElement>(selector)?.focus());
+  }, [buildSelection]);
 
   // Bau-Modus zurücksetzen, wenn nicht mehr mein Zug / andere Phase
   useEffect(() => {
@@ -97,8 +132,45 @@ export function Game() {
     if (game.activePlayer !== me || game.phase !== 'main') setBuildIntent(null);
   }, [game?.activePlayer, game?.phase, me]);
 
+  // Eine Vorschau gehört exakt zu Zug + Phase + Bauabsicht. Wechselt einer dieser
+  // Kontexte, darf kein alter Bestätigungsdialog auf ein inzwischen anderes Ziel wirken.
+  useEffect(() => {
+    setBuildSelection(null);
+  }, [game?.activePlayer, game?.phase, game?.turnCount, buildIntent, me]);
+
+  useEffect(() => {
+    if (!buildSelection) return;
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelBuild();
+    };
+    window.addEventListener('keydown', cancelOnEscape);
+    return () => window.removeEventListener('keydown', cancelOnEscape);
+  }, [buildSelection, cancelBuild]);
+
+  // Nach der Serverbestätigung direkt in den nächsten Bau-Schritt springen
+  // (Startsiedlung → Startstraße, erste Straßenbaukarten-Straße → zweite Straße).
+  useEffect(() => {
+    const previousGame = focusAfterConfirmedBuild.current;
+    if (!previousGame || !game || game === previousGame || buildSelection) return;
+    focusAfterConfirmedBuild.current = null;
+    if (game.activePlayer !== me) return;
+    const selector = highlights.edges.length
+      ? `[data-highlight-edge="${highlights.edges[0]}"]`
+      : highlights.corners.length
+        ? `[data-highlight-corner="${highlights.corners[0]}"]`
+        : null;
+    if (!selector) return;
+    const frame = requestAnimationFrame(() => document.querySelector<SVGGElement>(selector)?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [game, me, buildSelection, highlights.edges, highlights.corners]);
+
   if (!game || !me || !board) return null;
   const yourTurn = game.activePlayer === me;
+  const buildKind = buildKindForContext(game.phase, buildIntent);
+  const adjacentLandCount = buildSelection ? adjacentLandHexIds(board, buildSelection).length : 0;
+  const selectionStatus = buildSelection
+    ? `${buildLabel(buildSelection.kind)} ausgewählt.${adjacentLandCount ? ` ${adjacentLandCount} angrenzende Landfelder hervorgehoben.` : ''} Bauen bestätigen oder Auswahl abbrechen.`
+    : '';
 
   const onPlayDev = (card: DevCardType) => {
     if (card === 'knight') act({ type: 'playKnight' });
@@ -169,12 +241,19 @@ export function Game() {
               highlightCorners={highlights.corners}
               highlightEdges={highlights.edges}
               highlightHexes={highlights.hexes}
+              buildKind={buildKind}
+              buildSelection={buildSelection}
+              buildColor={colorOf(me)}
+              onConfirmBuild={confirmBuild}
+              onCancelBuild={cancelBuild}
               onCorner={onCorner}
               onEdge={onEdge}
               onHex={onHex}
             />
           </PanZoom>
         </div>
+
+        <div className="sr-only" role="status" aria-live="polite">{selectionStatus}</div>
 
         <PlayerRail />
         <BankPanel />

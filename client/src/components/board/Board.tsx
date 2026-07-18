@@ -1,6 +1,16 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Board as BoardT, PlayerColor } from '@catan/shared';
 import { Tile, PortMark, Robber, RoadPiece, Settlement, BoardDefs, hexVerts } from './pieces';
+import {
+  AdjacentHexFeedback,
+  BuildConfirmationOverlay,
+  BuildTargetPreview,
+} from './BuildSelection';
+import {
+  buildLabel,
+  type BuildKind,
+  type BuildSelection,
+} from './buildSelectionLogic';
 
 const PAD = 34;
 
@@ -61,18 +71,31 @@ export interface BoardProps {
   highlightCorners?: number[];
   highlightEdges?: number[];
   highlightHexes?: number[];
+  buildKind?: BuildKind | null;
+  buildSelection?: BuildSelection | null;
+  buildColor?: PlayerColor;
+  onConfirmBuild?: () => void;
+  onCancelBuild?: () => void;
   onCorner?: (id: number) => void;
   onEdge?: (id: number) => void;
   onHex?: (id: number) => void;
 }
 
-// Statische Ebene: Terrain + Häfen. Rendert nur neu, wenn sich das Board ändert.
-const StaticLayer = memo(function StaticLayer({ board }: { board: BoardT }) {
+// Terrain und Häfen bleiben getrennte statische Ebenen: Der Auswahl-Impuls kann
+// dadurch nur die Feldflächen abdunkeln, ohne Hafenplatten und Stege mitzudimmen.
+const TerrainLayer = memo(function TerrainLayer({ board }: { board: BoardT }) {
   return (
     <g>
       {board.hexes.map((hex) => (
         <Tile key={hex.id} hex={hex} />
       ))}
+    </g>
+  );
+});
+
+const PortLayer = memo(function PortLayer({ board }: { board: BoardT }) {
+  return (
+    <g>
       {board.ports.map((port) => (
         <PortMark
           key={port.id}
@@ -85,14 +108,36 @@ const StaticLayer = memo(function StaticLayer({ board }: { board: BoardT }) {
   );
 });
 
+function activateCandidate(event: KeyboardEvent<SVGGElement>, action: () => void, selector: string) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    action();
+    return;
+  }
+  const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown'
+    ? 1
+    : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+      ? -1
+      : 0;
+  if (!delta) return;
+  const candidates = [...(event.currentTarget.ownerSVGElement?.querySelectorAll<SVGGElement>(selector) ?? [])];
+  const index = candidates.indexOf(event.currentTarget);
+  if (index < 0 || candidates.length < 2) return;
+  event.preventDefault();
+  candidates[(index + delta + candidates.length) % candidates.length]?.focus();
+}
+
 export const Board = memo(function Board(props: BoardProps) {
   const { board, buildings, roads, robberHex, colorOf } = props;
+  const svgRef = useRef<SVGSVGElement>(null);
   const w = board.hexW;
   const vbW = board.width + PAD * 2;
   const vbH = board.height + PAD * 2 + 12;
 
   return (
+    <>
     <svg
+      ref={svgRef}
       viewBox={`${-PAD} ${-PAD} ${vbW} ${vbH}`}
       style={{ width: '100%', height: '100%', display: 'block', userSelect: 'none' }}
       preserveAspectRatio="xMidYMid meet"
@@ -103,7 +148,15 @@ export const Board = memo(function Board(props: BoardProps) {
           der Browser zeichnet die Pfade bei jeder Stufe neu (scharf, kein Zwischen-Bitmap,
           kein Nachrastern/Springen). Defs bleiben außerhalb, die werden nicht gezeichnet. */}
       <g data-zoom-layer>
-      <StaticLayer board={board} />
+      <TerrainLayer board={board} />
+      {props.buildSelection && (
+        <AdjacentHexFeedback
+          key={`${props.buildSelection.kind}-${props.buildSelection.kind === 'road' ? props.buildSelection.edge : props.buildSelection.corner}`}
+          board={board}
+          selection={props.buildSelection}
+        />
+      )}
+      <PortLayer board={board} />
 
       {/* Straßen */}
       {Object.entries(roads).map(([id, r]) => {
@@ -168,12 +221,28 @@ export const Board = memo(function Board(props: BoardProps) {
 
       {/* Straßen-Bauplätze: saubere „Geister-Straße" — goldener Schimmer + heller Kern,
           kein Filter/keine dunkle Kontur (die auf dunklen Feldern buggy wirkte). */}
-      {props.highlightEdges?.map((id) => {
+      {props.highlightEdges?.map((id, index) => {
         const e = board.edges[id];
         if (!e) return null;
+        const selected = props.buildSelection?.kind === 'road' && props.buildSelection.edge === id;
+        const label = props.buildKind ? `${buildLabel(props.buildKind)} an dieser Kante auswählen` : 'Baukante auswählen';
         return (
-          <g key={`he${id}`} data-highlight-edge={id} style={{ cursor: 'pointer' }} className="pulse-soft" onClick={() => props.onEdge?.(id)}>
-            <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.15} strokeLinecap="round" opacity={0.4} />
+          <g
+            key={`he${id}`}
+            data-highlight-edge={id}
+            className={`build-candidate ${selected ? 'build-candidate-selected' : 'pulse-soft'}`}
+            role="button"
+            tabIndex={selected || (!props.buildSelection && index === 0) ? 0 : -1}
+            aria-label={label}
+            aria-pressed={selected}
+            style={{ cursor: 'pointer' }}
+            onClick={() => props.onEdge?.(id)}
+            onKeyDown={(event) => activateCandidate(event, () => props.onEdge?.(id), '[data-highlight-edge]')}
+          >
+            {/* Eigene Fläche am Kantenmittelpunkt hält auch senkrechte/waagerechte
+                SVG-Kanten als ausreichend großes Touch- und Testziel messbar. */}
+            <circle cx={(e.x1 + e.x2) / 2} cy={(e.y1 + e.y2) / 2} r={w * 0.2} fill="transparent" />
+            <line className="build-candidate-shape" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="var(--gold)" strokeWidth={w * 0.15} strokeLinecap="round" opacity={0.4} />
             <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="#FFF6E0" strokeWidth={w * 0.05} strokeLinecap="round" opacity={0.95} />
             {/* breiter unsichtbarer Klick-/Touch-Bereich */}
             <line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} stroke="transparent" strokeWidth={w * 0.4} strokeLinecap="round" />
@@ -183,13 +252,27 @@ export const Board = memo(function Board(props: BoardProps) {
 
       {/* Siedlungs-/Stadt-Bauplätze: sauberer halbtransparenter Kreis mit hellem Rand
           (wie die Startplatzierung — klar, aber nicht überstrahlt). */}
-      {props.highlightCorners?.map((id) => {
+      {props.highlightCorners?.map((id, index) => {
         const c = board.corners[id];
         if (!c) return null;
+        const selected = props.buildSelection?.kind !== 'road' && props.buildSelection?.corner === id;
+        const label = props.buildKind ? `${buildLabel(props.buildKind)} an diesem Baupunkt auswählen` : 'Baupunkt auswählen';
         return (
-          <g key={`hc${id}`} data-highlight-corner={id} style={{ cursor: 'pointer' }} onClick={() => props.onCorner?.(id)}>
+          <g
+            key={`hc${id}`}
+            data-highlight-corner={id}
+            className={`build-candidate ${selected ? 'build-candidate-selected' : ''}`}
+            role="button"
+            tabIndex={selected || (!props.buildSelection && index === 0) ? 0 : -1}
+            aria-label={label}
+            aria-pressed={selected}
+            style={{ cursor: 'pointer' }}
+            onClick={() => props.onCorner?.(id)}
+            onKeyDown={(event) => activateCandidate(event, () => props.onCorner?.(id), '[data-highlight-corner]')}
+          >
             <circle cx={c.x} cy={c.y} r={w * 0.22} fill="transparent" />
             <circle
+              className={`build-candidate-shape ${selected ? '' : 'pulse-soft'}`}
               cx={c.x}
               cy={c.y}
               r={w * 0.14}
@@ -197,13 +280,32 @@ export const Board = memo(function Board(props: BoardProps) {
               fillOpacity={0.32}
               stroke="#FFF6E0"
               strokeWidth={w * 0.03}
-              className="pulse-soft"
             />
           </g>
         );
       })}
+
+      {props.buildSelection && props.buildColor && props.onConfirmBuild && props.onCancelBuild && (
+        <BuildTargetPreview
+          board={board}
+          selection={props.buildSelection}
+          color={props.buildColor}
+        />
+      )}
       </g>
     </svg>
+    {props.buildSelection && props.buildColor && props.onConfirmBuild && props.onCancelBuild && (
+      <BuildConfirmationOverlay
+        key={`${props.buildSelection.kind}-${props.buildSelection.kind === 'road' ? props.buildSelection.edge : props.buildSelection.corner}`}
+        board={board}
+        selection={props.buildSelection}
+        color={props.buildColor}
+        svgRef={svgRef}
+        onConfirm={props.onConfirmBuild}
+        onCancel={props.onCancelBuild}
+      />
+    )}
+    </>
   );
 });
 
